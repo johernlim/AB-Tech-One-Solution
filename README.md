@@ -2,8 +2,6 @@
 
 Responsive static website for AB Tech One Solution, Taiping, Perak.
 
-The design follows https://ab-tech-one.github.io/ with dark slate panels, mint accents, rounded cards and the company logo. Service descriptions and contact details are retained from https://ab-techone.com/.
-
 ## Preview
 
 Run `python -m http.server 8080`, then open http://localhost:8080.
