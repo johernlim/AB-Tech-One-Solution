@@ -34,9 +34,7 @@ document.querySelectorAll('[data-service]').forEach(link => link.addEventListene
 }));
 const phoneInput = document.getElementById('phone');
 function localMobileNumber(value) {
-  const compact = value.trim().replace(/[\s-]/g, '');
-  const local = compact.replace(/^\+?60/, '0');
-  return /^(?:011[0-9]{8}|01[02-9][0-9]{7})$/.test(local) ? local : null;
+  return /^(?:011[0-9]{8}|01[02-9][0-9]{7})$/.test(value) ? value : null;
 }
 function validatePhone() {
   const valid = localMobileNumber(phoneInput.value);
@@ -44,7 +42,10 @@ function validatePhone() {
     ? 'Enter a Malaysian mobile number: 011 needs 11 digits; other 01 prefixes need 10 digits.' : '');
   return valid;
 }
-phoneInput.addEventListener('input', validatePhone);
+phoneInput.addEventListener('input', () => {
+  phoneInput.value = phoneInput.value.replace(/[^0-9]/g, '').slice(0, 11);
+  validatePhone();
+});
 phoneInput.addEventListener('change', validatePhone);
 
 document.querySelector('.contact-form').addEventListener('submit', event => {
@@ -55,9 +56,13 @@ document.querySelector('.contact-form').addEventListener('submit', event => {
   data.set('phone', phone);
   data.set('company', data.get('company').trim());
   const body = `Request a free site assessment\n\nName: ${data.get('name')}\nCompany: ${data.get('company')}\nPhone: ${data.get('phone')}\nSystem: ${data.get('service')}\n\nAbout the space: ${data.get('message') || 'Not provided'}`;
-  const url = `https://wa.me/601130789593?text=${encodeURIComponent(body)}`;
+  const email = event.submitter?.value === 'email';
+  const url = email
+    ? `mailto:abtechonesolution@gmail.com?subject=${encodeURIComponent('Request a free site assessment')}&body=${encodeURIComponent(body)}`
+    : `https://wa.me/601130789593?text=${encodeURIComponent(body)}`;
   const status = document.getElementById('form-status');
-  status.textContent = 'Press Send in WhatsApp to complete your request. If WhatsApp did not open, ';
+  const destination = email ? 'your email app' : 'WhatsApp';
+  status.textContent = `Press Send in ${destination} to complete your request. If it did not open, `;
   const link = document.createElement('a');
   link.href = url;
   link.target = '_blank';
