@@ -170,7 +170,6 @@ Promise.all(productCategories.filter(item => !hasCategory || item.name === selec
 })).then(groups => {
   products = groups.flat();
   document.getElementById('total-count').textContent = products.length;
-  document.getElementById('example-notice').hidden = !products.some(p => p.example);
   grid.setAttribute('aria-busy', 'false'); render();
 }).catch(() => {
   grid.setAttribute('aria-busy', 'false');

@@ -50,6 +50,19 @@ test('Unauthenticated publishing is blocked and missing setup is reported', asyn
   assert.equal((await handleStaff(request('status'), env)).headers.get('Access-Control-Allow-Origin'), origin);
   assert.equal((await handleStaff(request('login', 'OPTIONS'), env)).status, 204);
 });
+test('Existing accounts can log in and log out when invitations are missing', async () => {
+  const withoutInvitation = {...env, STAFF_INVITE_CODE: undefined};
+  const status = await (await handleStaff(request('status'), withoutInvitation)).json();
+  assert.equal(status.configured, false);
+  assert.equal(status.loginConfigured, true);
+  assert.equal(status.registrationConfigured, false);
+  const login = await handleStaff(request('login', 'POST', account), withoutInvitation);
+  assert.equal(login.status, 200);
+  const {token} = await login.json();
+  assert.equal((await handleStaff(request('me', 'GET', undefined, token), withoutInvitation)).status, 200);
+  assert.equal((await handleStaff(request('register', 'POST', account), withoutInvitation)).status, 503);
+  assert.equal((await handleStaff(request('logout', 'POST', undefined, token), withoutInvitation)).status, 200);
+});
 test('Product validation rejects foreign images, duplicate IDs and wrong categories', async () => {
   const {products} = JSON.parse(await readFile(new URL('../data/categories/cctv.json', import.meta.url), 'utf8'));
   assert.equal(validateProducts(products, 'CCTV Systems'), true);

@@ -20,7 +20,9 @@ export function staffStatus(env) {
   const missing = ['STAFF_DB', 'STAFF_INVITE_CODE', 'STAFF_PASSWORD_PEPPER', 'GITHUB_CATALOGUE_TOKEN'].filter(name => !env[name]);
   if (env.STAFF_INVITE_CODE && env.STAFF_INVITE_CODE.length < 16) missing.push('STAFF_INVITE_CODE (at least 16 characters)');
   if (env.STAFF_PASSWORD_PEPPER && env.STAFF_PASSWORD_PEPPER.length < 32) missing.push('STAFF_PASSWORD_PEPPER (at least 32 random characters)');
-  return {configured: missing.length === 0, missing};
+  const loginConfigured = Boolean(env.STAFF_DB && env.STAFF_PASSWORD_PEPPER?.length >= 32);
+  const registrationConfigured = loginConfigured && Boolean(env.STAFF_INVITE_CODE?.length >= 16);
+  return {configured: missing.length === 0, loginConfigured, registrationConfigured, missing};
 }
 function json(data, status = 200) { return Response.json(data, {status, headers: {'Cache-Control': 'no-store'}}); }
 async function body(request, limit = 10000) {
@@ -78,13 +80,15 @@ export async function handleStaff(request, env) {
   const respond = async () => {
     if (url.pathname === '/staff/status' && request.method === 'GET') {
       const status = staffStatus(env);
-      if (status.configured) {
+      if (status.loginConfigured) {
         const row = await env.STAFF_DB.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('staff_users','staff_sessions','staff_attempts')").first();
-        if (row.count !== 3) {status.configured = false; status.missing.push('STAFF_DB schema');}
+        if (row.count !== 3) {status.configured = false; status.loginConfigured = false; status.registrationConfigured = false; status.missing.push('STAFF_DB schema');}
       }
       return json(status);
     }
-    if (!staffStatus(env).configured) return json({error: 'Staff accounts are awaiting the owner’s database connection.'}, 503);
+    const readiness = staffStatus(env);
+    if (!readiness.loginConfigured) return json({error: 'Login is temporarily unavailable. Please contact the owner and try again shortly.'}, 503);
+    if (url.pathname === '/staff/register' && !readiness.registrationConfigured) return json({error: 'Account creation is temporarily unavailable. The owner needs to restore the invitation code.'}, 503);
     if (['/staff/register', '/staff/login'].includes(url.pathname) && request.method === 'POST') {
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       if (!await rateLimit(env, 'ip:' + await digest(ip), 20)) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
@@ -120,6 +124,7 @@ export async function handleStaff(request, env) {
       return json({message: 'Logged out.'});
     }
     if (url.pathname === '/staff/me' && request.method === 'GET') return json({username: user.username});
+    if (!env.GITHUB_CATALOGUE_TOKEN) return json({error: 'Publishing is temporarily unavailable. Please contact the owner.'}, 503);
     const category = productCategories.find(category => url.pathname === '/staff/categories/' + category.slug);
     if (category && request.method === 'GET') {
       const response = await github(env, 'data/categories/' + category.slug + '.json?ref=main');

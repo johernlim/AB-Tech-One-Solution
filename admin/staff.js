@@ -4,6 +4,14 @@ const $ = id => document.getElementById(id);
 let base, token, username, selected = productCategories[0], products = [], sha, editing = -1, busy = false;
 function notice(id, text, error = false) { $(id).textContent = text; $(id).dataset.error = String(error); }
 async function api(path, options = {}) {
+  if (!base) {
+    try {
+      const response = await fetch('settings.json', {cache: 'no-store', signal: AbortSignal.timeout(10000)});
+      if (!response.ok) throw new Error();
+      base = (await response.json()).auth_base_url;
+      if (!base) throw new Error();
+    } catch {throw new Error('Could not connect to staff login. Please refresh and try again.');}
+  }
   const response = await fetch(new URL('/staff/' + path, base), {...options, cache: 'no-store', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})}, signal: AbortSignal.timeout(20000)});
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Please try again shortly.');
@@ -146,9 +154,6 @@ async function initialize() {
   try {
     const response = await fetch('settings.json', {cache: 'no-store'}); if (!response.ok) throw new Error();
     const settings = await response.json(); base = settings.auth_base_url;
-    const status = await api('status');
-    if (status.configured) {$('staff-login').disabled = false; $('staff-register').disabled = false; $('staff-setup-status').textContent = ''; $('staff-setup-status').hidden = true;}
-
   } catch { /* Connection status stays hidden on the login page. */ }
 }
 initialize();
