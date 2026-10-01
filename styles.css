@@ -8,4 +8,4 @@
 @media(max-width:380px){.form-row.two,.why-list{grid-template-columns:1fr}h1{font-size:32px}.brand{font-size:11px}.services-grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
 
-.assessment-title{font-size:19px;color:var(--mint);margin:24px 0 16px}.assessment-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.assessment-actions .button{padding:13px 12px;gap:9px}.contact-channel-icon{width:22px;height:22px;flex-shrink:0}@media(max-width:380px){.assessment-actions{grid-template-columns:1fr}}
+.assessment-title{font-size:19px;color:var(--mint);margin:24px 0 16px}.assessment-actions{display:flex;flex-wrap:wrap;gap:12px}.assessment-actions .button{width:auto;min-height:44px;padding:10px 16px;gap:8px;white-space:nowrap}.assessment-actions .contact-channel-icon{display:block;width:20px;height:20px;flex:0 0 20px}
