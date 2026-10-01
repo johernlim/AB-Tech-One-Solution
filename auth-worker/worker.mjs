@@ -1,3 +1,4 @@
+import {handleStaff} from './staff.mjs';
 const cookieName = '__Host-abtech_oauth_state';
 const clearCookie = `${cookieName}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 const baseHeaders = {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff'};
@@ -26,6 +27,7 @@ function popup(origin, payload, status = 'success') {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith('/staff/')) return handleStaff(request, env);
     if (request.method !== 'GET') return message('Method not allowed.', 405);
     if (!['/auth', '/callback', '/health', '/status'].includes(url.pathname)) return message('Not found.', 404);
     if (url.pathname === '/health') return message('AB Tech login service is running.', 200);

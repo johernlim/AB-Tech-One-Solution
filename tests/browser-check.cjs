@@ -59,12 +59,14 @@ const fs = require('node:fs');
     await page.setViewportSize({width: 1440, height: 1100});
     await page.route('https://ab-tech-catalogue-auth.johern20154.workers.dev/status', route => route.fulfill({json: {configured: false, missing: ['GITHUB_CLIENT_SECRET'], invalid: []}, headers: {'Access-Control-Allow-Origin': '*'}}));
     await page.goto('http://localhost:8080/admin/');
+    await page.locator('.owner-access summary').click();
     await page.getByRole('button', {name: 'Login setup pending'}).waitFor();
     assert.equal(await page.locator('#open-live').isDisabled(), true);
     assert.match(await page.locator('#setup-status').innerText(), /GITHUB_CLIENT_SECRET/);
     await page.unroute('https://ab-tech-catalogue-auth.johern20154.workers.dev/status');
     await page.route('https://ab-tech-catalogue-auth.johern20154.workers.dev/status', route => route.fulfill({json: {configured: true, missing: [], invalid: []}, headers: {'Access-Control-Allow-Origin': '*'}}));
     await page.reload();
+    await page.locator('.owner-access summary').click();
     await page.getByRole('button', {name: 'Open live editor ↗'}).waitFor();
     assert.equal(await page.locator('#open-live').isDisabled(), false);
     await page.screenshot({path: '.preview/admin-workspace.png', fullPage: true});
@@ -76,6 +78,11 @@ const fs = require('node:fs');
     const {productCategories} = await import('../product-categories.js');
     for (const {name, slug} of productCategories) {
       assert.equal(await page.getByRole('link', {name, exact: true}).getAttribute('href'), '#/collections/' + slug);
+    }
+    for (const view of ['Grid view option', 'List view option']) {
+      await page.getByRole('button', {name: view}).click();
+      const icon = await page.locator('a[href="#/collections/cctv/entries/cctv"]').evaluate(card => getComputedStyle(card, '::before').backgroundImage);
+      assert.ok(icon.includes('category-icons/cctv.svg'));
     }
     await page.screenshot({path: '.preview/admin-categories.png', fullPage: true});
     await page.getByText('Products', {exact: true}).first().click();

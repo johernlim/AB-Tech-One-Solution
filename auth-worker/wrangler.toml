@@ -7,3 +7,6 @@ compatibility_date = "2026-10-01"
 ALLOWED_ORIGIN = "https://ab-tech-one-solution.pages.dev"
 GITHUB_REPO = "johernlim/AB-Tech-One-Solution"
 # Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET as Worker secrets.
+# Staff accounts additionally need STAFF_INVITE_CODE, STAFF_PASSWORD_PEPPER,
+# GITHUB_CATALOGUE_TOKEN runtime secrets and a STAFF_DB D1 binding.
+# Add the real database ID using docs/STAFF-ACCOUNTS.md before enabling staff login.
