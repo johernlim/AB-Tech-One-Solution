@@ -9,4 +9,8 @@ GITHUB_REPO = "johernlim/AB-Tech-One-Solution"
 # Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET as Worker secrets.
 # Staff accounts additionally need STAFF_INVITE_CODE, STAFF_PASSWORD_PEPPER,
 # GITHUB_CATALOGUE_TOKEN runtime secrets and a STAFF_DB D1 binding.
-# Add the real database ID using docs/STAFF-ACCOUNTS.md before enabling staff login.
+
+[[d1_databases]]
+binding = "STAFF_DB"
+database_name = "ab-tech-staff"
+database_id = "13b8873f-d024-4aa8-8d7f-ea871aff0e5e"
