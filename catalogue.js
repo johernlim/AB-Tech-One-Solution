@@ -2,7 +2,9 @@
 const categories = ['CCTV Systems', 'Alarm Systems', 'Door Access Control', 'Computers & Laptops', 'POS Systems', 'Network Infrastructure', 'WiFi Solutions', 'Server Solutions', 'Software Solutions', 'Digital Signage'];
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
 const params = new URLSearchParams(location.search);
-let category = categories.includes(params.get('category')) ? params.get('category') : 'All products';
+const hasCategory = categories.includes(params.get('category'));
+const browsingProducts = hasCategory || params.get('view') === 'all';
+let category = hasCategory ? params.get('category') : 'All products';
 let products = [];
 const grid = document.getElementById('products');
 const search = document.getElementById('search');
@@ -36,8 +38,8 @@ function filters() {
     button.addEventListener('click', () => {
       category = name;
       const url = new URL(location.href);
-      if (category === 'All products') url.searchParams.delete('category');
-      else url.searchParams.set('category', category);
+      if (category === 'All products') { url.searchParams.delete('category'); url.searchParams.set('view', 'all'); }
+      else { url.searchParams.set('category', category); url.searchParams.delete('view'); }
       history.replaceState(null, '', url);
       filters(); render();
     });
@@ -109,6 +111,11 @@ function render() {
     return sort.value === 'price-low' ? a.price - b.price : b.price - a.price;
   });
   document.getElementById('category-title').textContent = category;
+  document.getElementById('catalogue-page-title').textContent = category;
+  document.title = category + ' | AB Tech One Solution';
+  const categoryCard = [...document.querySelectorAll('.catalogue-categories .service-card')].find(card => card.querySelector('h3').textContent === category);
+  document.getElementById('catalogue-page-description').textContent = categoryCard ? categoryCard.querySelector('p').textContent : 'Explore all our products, or choose a category below.';
+  document.getElementById('total-count').textContent = products.filter(p => category === 'All products' || p.category === category).length;
   document.getElementById('result-count').textContent = `${visible.length} product${visible.length === 1 ? '' : 's'}`;
   grid.replaceChildren(...visible.map(card));
   document.getElementById('empty-state').hidden = visible.length > 0;
@@ -116,7 +123,7 @@ function render() {
 search.addEventListener('input', render); sort.addEventListener('change', render);
 document.getElementById('reset-filters').addEventListener('click', () => {
   search.value = ''; category = 'All products'; sort.value = 'featured';
-  const url = new URL(location.href); url.searchParams.delete('category'); history.replaceState(null, '', url);
+  const url = new URL(location.href); url.searchParams.delete('category'); url.searchParams.set('view', 'all'); history.replaceState(null, '', url);
   filters(); render();
 });
 document.getElementById('close-dialog').addEventListener('click', () => dialog.close());
@@ -126,6 +133,10 @@ dialog.addEventListener('click', event => {
 });
 dialog.addEventListener('close', () => activeProductButton?.focus());
 document.getElementById('year').textContent = new Date().getFullYear();
+document.getElementById('category-landing').hidden = browsingProducts;
+document.getElementById('product-browser').hidden = !browsingProducts;
+if (browsingProducts) {
+document.getElementById('count-label').textContent = 'products to explore';
 filters();
 fetch('data/products.json').then(response => {
   if (!response.ok) throw new Error('Catalogue unavailable');
@@ -140,3 +151,5 @@ fetch('data/products.json').then(response => {
   document.getElementById('result-count').textContent = 'Unable to load products';
   document.getElementById('load-error').hidden = false;
 });
+
+}

@@ -21,6 +21,6 @@ Company logo and Poppins font files were reused from the supplied reference repo
 
 ## Product catalogue and admin
 
-Open `catalogue.html` to browse 12 clearly labelled examples across all ten categories. Open `admin/` for the staff workspace, or `admin/?demo=1` to try the Decap editor without changing the live website.
+Open `catalogue.html` to choose one of ten product categories, then browse its products. The catalogue includes 12 clearly labelled examples. Open `admin/` for the staff workspace, or `admin/?demo=1` to try the Decap editor without changing the live website.
 
 Live publishing needs a one-time GitHub OAuth and Cloudflare connection. See [the setup guide](docs/ADMIN-SETUP.md) for architecture, owner setup, staff instructions and free-plan boundaries.
