@@ -58,10 +58,10 @@ document.querySelector('.contact-form').addEventListener('submit', event => {
   const body = `Request a free site assessment\n\nName: ${data.get('name')}\nCompany: ${data.get('company')}\nPhone: ${data.get('phone')}\nSystem: ${data.get('service')}\n\nAbout the space: ${data.get('message') || 'Not provided'}`;
   const email = event.submitter?.value === 'email';
   const url = email
-    ? `mailto:abtechonesolution@gmail.com?subject=${encodeURIComponent('Request a free site assessment')}&body=${encodeURIComponent(body)}`
+    ? `https://mail.google.com/mail/?view=cm&fs=1&to=abtechonesolution@gmail.com&su=${encodeURIComponent('Request a free site assessment')}&body=${encodeURIComponent(body)}`
     : `https://wa.me/601130789593?text=${encodeURIComponent(body)}`;
   const status = document.getElementById('form-status');
-  const destination = email ? 'your email app' : 'WhatsApp';
+  const destination = email ? 'Gmail' : 'WhatsApp';
   status.textContent = `Press Send in ${destination} to complete your request. If it did not open, `;
   const link = document.createElement('a');
   link.href = url;
