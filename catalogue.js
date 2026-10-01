@@ -1,0 +1,142 @@
+'use strict';
+const categories = ['CCTV Systems', 'Alarm Systems', 'Door Access Control', 'Computers & Laptops', 'POS Systems', 'Network Infrastructure', 'WiFi Solutions', 'Server Solutions', 'Software Solutions', 'Digital Signage'];
+const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
+const params = new URLSearchParams(location.search);
+let category = categories.includes(params.get('category')) ? params.get('category') : 'All products';
+let products = [];
+const grid = document.getElementById('products');
+const search = document.getElementById('search');
+const sort = document.getElementById('sort');
+const dialog = document.getElementById('product-dialog');
+let activeProductButton;
+
+function element(tag, className, content) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (content !== undefined) node.textContent = content;
+  return node;
+}
+function price(product) {
+  if (product.price_mode === 'quote') return 'Request a quote';
+  return (product.price_mode === 'from' ? 'From ' : '') + money.format(product.price);
+}
+function imagePath(path) {
+  // Uploaded media stays within this site; reject script URLs and foreign paths.
+  const clean = String(path || '').replace(/^\/+/, '');
+  if (!/^assets\/[a-zA-Z0-9_./ -]+$/.test(clean) || clean.split('/').includes('..')) return 'assets/products/cctv.svg';
+  return clean;
+}
+function filters() {
+  const nav = document.getElementById('category-filters');
+  nav.replaceChildren();
+  ['All products', ...categories].forEach(name => {
+    const button = element('button', '', name);
+    button.type = 'button';
+    button.setAttribute('aria-pressed', String(name === category));
+    button.addEventListener('click', () => {
+      category = name;
+      const url = new URL(location.href);
+      if (category === 'All products') url.searchParams.delete('category');
+      else url.searchParams.set('category', category);
+      history.replaceState(null, '', url);
+      filters(); render();
+    });
+    nav.append(button);
+  });
+}
+function showDetails(product, button) {
+  activeProductButton = button;
+  document.getElementById('detail-name').textContent = product.name;
+  document.getElementById('detail-category').textContent = product.category;
+  document.getElementById('detail-price').textContent = price(product);
+  document.getElementById('detail-description').textContent = product.description;
+  document.getElementById('detail-installation').textContent = product.installation;
+  document.getElementById('detail-availability').textContent = product.availability;
+  document.getElementById('detail-example').hidden = !product.example;
+  document.getElementById('detail-example-note').hidden = !product.example;
+  document.getElementById('detail-specs').replaceChildren(...(product.specifications || []).map(text => element('li', '', text)));
+  const image = document.getElementById('detail-image');
+  image.src = imagePath(product.image); image.alt = product.name + (product.example ? ' — example illustration' : '');
+  const gallery = document.getElementById('detail-gallery');
+  gallery.replaceChildren();
+  [product.image, ...(product.gallery || [])].forEach((path, index) => {
+    const thumbnail = element('button'); thumbnail.type = 'button';
+    thumbnail.setAttribute('aria-label', 'View product image ' + (index + 1));
+    thumbnail.setAttribute('aria-pressed', String(index === 0));
+    const img = element('img'); img.src = imagePath(path); img.alt = '';
+    thumbnail.append(img);
+    thumbnail.addEventListener('click', () => {
+      image.src = imagePath(path);
+      gallery.querySelectorAll('button').forEach(item => item.setAttribute('aria-pressed', String(item === thumbnail)));
+    });
+    gallery.append(thumbnail);
+  });
+  gallery.hidden = gallery.children.length < 2;
+  const subject = 'Product enquiry: ' + product.name;
+  const body = `Hello AB Tech One Solution,\n\nI would like to enquire about ${product.name}.\nCategory: ${product.category}\n${product.example ? 'I saw this example in your catalogue. Please confirm actual products and prices.' : 'Listed price: ' + price(product)}\n\nPlease advise availability and installation options.\n\nMy name:\nMy phone:\nMy location:`;
+  document.getElementById('detail-enquire').href = `mailto:abtechonesolution@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  dialog.showModal();
+  document.getElementById('close-dialog').focus();
+}
+function card(product) {
+  const article = element('article', 'product-card');
+  const photo = element('button', 'product-image-button'); photo.type = 'button';
+  photo.setAttribute('aria-label', 'View ' + product.name);
+  const img = element('img'); img.src = imagePath(product.image); img.alt = product.name + (product.example ? ' — example illustration' : '');
+  img.width = 640; img.height = 440; img.loading = 'lazy';
+  photo.append(img);
+  if (product.example) photo.append(element('span', 'sample-badge', 'EXAMPLE'));
+  const copy = element('div', 'product-card-copy');
+  copy.append(element('span', 'product-category', product.category));
+  const heading = element('h3'); const name = element('button', 'product-title-button', product.name); name.type = 'button'; heading.append(name);
+  copy.append(heading, element('p', '', product.description));
+  const bottom = element('div', 'product-card-bottom');
+  const cost = element('div', 'product-price', price(product));
+  cost.append(element('small', '', product.example ? 'Illustrative price' : product.availability));
+  const details = element('button', '', 'View details ↗'); details.type = 'button';
+  bottom.append(cost, details); copy.append(bottom); article.append(photo, copy);
+  [photo, name, details].forEach(button => button.addEventListener('click', () => showDetails(product, button)));
+  return article;
+}
+function render() {
+  const query = search.value.trim().toLowerCase();
+  const visible = products.filter(p => (category === 'All products' || p.category === category) && `${p.name} ${p.description} ${p.category} ${(p.specifications || []).join(' ')}`.toLowerCase().includes(query));
+  if (sort.value === 'name') visible.sort((a,b) => a.name.localeCompare(b.name));
+  if (sort.value.startsWith('price-')) visible.sort((a,b) => {
+    if (a.price_mode === 'quote' && b.price_mode === 'quote') return 0;
+    if (a.price_mode === 'quote') return 1;
+    if (b.price_mode === 'quote') return -1;
+    return sort.value === 'price-low' ? a.price - b.price : b.price - a.price;
+  });
+  document.getElementById('category-title').textContent = category;
+  document.getElementById('result-count').textContent = `${visible.length} product${visible.length === 1 ? '' : 's'}`;
+  grid.replaceChildren(...visible.map(card));
+  document.getElementById('empty-state').hidden = visible.length > 0;
+}
+search.addEventListener('input', render); sort.addEventListener('change', render);
+document.getElementById('reset-filters').addEventListener('click', () => {
+  search.value = ''; category = 'All products'; sort.value = 'featured';
+  const url = new URL(location.href); url.searchParams.delete('category'); history.replaceState(null, '', url);
+  filters(); render();
+});
+document.getElementById('close-dialog').addEventListener('click', () => dialog.close());
+dialog.addEventListener('click', event => {
+  const rect = dialog.getBoundingClientRect();
+  if (event.target === dialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) dialog.close();
+});
+dialog.addEventListener('close', () => activeProductButton?.focus());
+document.getElementById('year').textContent = new Date().getFullYear();
+filters();
+fetch('data/products.json').then(response => {
+  if (!response.ok) throw new Error('Catalogue unavailable');
+  return response.json();
+}).then(data => {
+  products = data.products.filter(p => p.published === true);
+  document.getElementById('total-count').textContent = products.length;
+  document.getElementById('example-notice').hidden = !products.some(p => p.example);
+  grid.setAttribute('aria-busy', 'false'); render();
+}).catch(() => {
+  grid.setAttribute('aria-busy', 'false');
+  document.getElementById('result-count').textContent = 'Unable to load products';
+  document.getElementById('load-error').hidden = false;
+});
