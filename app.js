@@ -35,7 +35,15 @@ document.querySelectorAll('[data-service]').forEach(link => link.addEventListene
 document.querySelector('.contact-form').addEventListener('submit', event => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  const body = `Name: ${data.get('name')}\nCompany: ${data.get('company')}\nPhone: ${data.get('phone')}\nSystem: ${data.get('service')}\n\n${data.get('message')}`;
-  window.location.href = `mailto:abtechonesolution@gmail.com?subject=${encodeURIComponent('Site assessment: ' + data.get('service'))}&body=${encodeURIComponent(body)}`;
-  document.getElementById('form-status').textContent = 'Your email app will open with your enquiry. Please press Send there to complete your request. If it does not open, call +6011 3078 9593.';
+  const body = `Request a free site assessment\n\nName: ${data.get('name')}\nCompany: ${data.get('company') || 'Not provided'}\nPhone: ${data.get('phone')}\nSystem: ${data.get('service')}\n\nAbout the space: ${data.get('message') || 'Not provided'}`;
+  const url = `https://wa.me/601130789593?text=${encodeURIComponent(body)}`;
+  const status = document.getElementById('form-status');
+  status.textContent = 'Press Send in WhatsApp to complete your request. If WhatsApp did not open, ';
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'open your request here.';
+  status.append(link);
+  window.open(url, '_blank', 'noopener,noreferrer');
 });
