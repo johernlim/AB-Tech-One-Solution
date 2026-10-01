@@ -135,13 +135,14 @@
           </div>
           <div class="field">
             <label for="company">Company</label>
-            <input id="company" name="company" type="text" placeholder="Company name">
+            <input id="company" name="company" type="text" placeholder="Company name" required pattern=".*\S.*" title="Enter your company name.">
           </div>
         </div>
         <div class="form-row two">
           <div class="field">
             <label for="phone">Phone</label>
-            <input id="phone" name="phone" type="tel" placeholder="012-345 6789" required>
+            <input id="phone" name="phone" type="tel" placeholder="012-345 6789" required inputmode="tel" autocomplete="tel" aria-describedby="phone-help">
+            <p class="form-note" id="phone-help">Malaysian mobile numbers only. 011: 11 digits; other 01 prefixes: 10 digits. +60 format is also accepted.</p>
           </div>
           <div class="field">
             <label for="service">System you need</label>
