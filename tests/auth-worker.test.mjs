@@ -5,6 +5,17 @@ import worker from '../auth-worker/worker.mjs';
 const env = {ALLOWED_ORIGIN: 'https://catalogue.pages.dev', GITHUB_REPO: 'johernlim/AB-Tech-One-Solution', GITHUB_CLIENT_ID: 'test-client', GITHUB_CLIENT_SECRET: 'test-secret'};
 const request = (path, cookie) => new Request('https://auth.workers.dev' + path, {headers: cookie ? {Cookie: cookie} : {}});
 
+test('Status reports setting names without exposing credentials', async () => {
+  const ready = await worker.fetch(request('/status'), env);
+  assert.deepEqual(await ready.json(), {configured: true, missing: [], invalid: []});
+  assert.equal(ready.headers.get('Access-Control-Allow-Origin'), env.ALLOWED_ORIGIN);
+  const missing = await worker.fetch(request('/status'), {...env, GITHUB_CLIENT_SECRET: ''});
+  assert.deepEqual(await missing.json(), {configured: false, missing: ['GITHUB_CLIENT_SECRET'], invalid: []});
+  const invalid = await worker.fetch(request('/status'), {...env, ALLOWED_ORIGIN: 'https://catalogue.pages.dev/path'});
+  assert.deepEqual(await invalid.json(), {configured: false, missing: [], invalid: ['ALLOWED_ORIGIN']});
+  assert.equal(invalid.headers.get('Access-Control-Allow-Origin'), null);
+});
+
 test('Unconfigured service refuses login', async () => {
   assert.equal((await worker.fetch(request('/auth'), {})).status, 503);
 });

@@ -80,7 +80,7 @@ async function openEditor(settings, isDemo) {
 if (demo) {
   openEditor(null, true);
 } else {
-  fetch('settings.json').then(response => {if (!response.ok) throw new Error(); return response.json();}).then(settings => {
+  fetch('settings.json', {cache: 'no-store'}).then(response => {if (!response.ok) throw new Error(); return response.json();}).then(async settings => {
     if (!settings.auth_base_url) {
       liveButton.textContent = 'Login setup pending';
       document.getElementById('setup-status').textContent = 'The owner needs to connect GitHub login once. You can try the editor demo now.';
@@ -88,10 +88,19 @@ if (demo) {
     }
     const authURL = new URL(settings.auth_base_url);
     if (authURL.protocol !== 'https:') throw new Error();
+    const response = await fetch(new URL('/status', authURL), {cache: 'no-store', signal: AbortSignal.timeout(10000)});
+    if (!response.ok) throw new Error();
+    const status = await response.json();
+    if (!status.configured) {
+      liveButton.textContent = 'Login setup pending';
+      document.getElementById('setup-status').textContent = 'Login settings need attention: ' + [...status.missing, ...status.invalid].join(', ') + '. The editor demo is still available.';
+      return;
+    }
+    document.getElementById('setup-status').textContent = 'GitHub login is connected. Sign in with an account that has write access to the catalogue repository.';
     liveButton.disabled = false; liveButton.textContent = 'Open live editor ↗';
     liveButton.addEventListener('click', () => openEditor(settings, false), {once: true});
   }).catch(() => {
     liveButton.textContent = 'Connection unavailable';
-    document.getElementById('setup-status').textContent = 'Check admin/settings.json. The editor demo is still available.';
+    document.getElementById('setup-status').textContent = 'The login service could not be reached. Use the admin page on ab-tech-one-solution.pages.dev and try again shortly. The editor demo is still available.';
   });
 }

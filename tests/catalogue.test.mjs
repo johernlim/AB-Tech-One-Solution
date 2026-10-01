@@ -28,8 +28,8 @@ test('Every homepage service links to its catalogue category', async () => {
   for (const category of categories) assert.ok(html.includes('catalogue.html?category=' + encodeURIComponent(category).replaceAll("'", '%27')));
 });
 
-test('Live authentication is disabled until the owner configures it', async () => {
+test('Live authentication uses the production Worker', async () => {
   const settings = JSON.parse(await readFile(new URL('admin/settings.json', root), 'utf8'));
   assert.equal(settings.repo, 'johernlim/AB-Tech-One-Solution');
-  assert.equal(settings.auth_base_url, '');
+  assert.equal(settings.auth_base_url, 'https://ab-tech-catalogue-auth.johern20154.workers.dev');
 });

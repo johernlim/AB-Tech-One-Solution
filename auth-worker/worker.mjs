@@ -27,13 +27,25 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method !== 'GET') return message('Method not allowed.', 405);
-    if (!['/auth', '/callback', '/health'].includes(url.pathname)) return message('Not found.', 404);
+    if (!['/auth', '/callback', '/health', '/status'].includes(url.pathname)) return message('Not found.', 404);
     if (url.pathname === '/health') return message('AB Tech login service is running.', 200);
+    const required = ['ALLOWED_ORIGIN', 'GITHUB_REPO', 'GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'];
+    const missing = required.filter(name => !env[name]);
+    const invalid = [];
     let origin;
     try {
       origin = new URL(env.ALLOWED_ORIGIN);
-      if (origin.protocol !== 'https:' || origin.origin !== env.ALLOWED_ORIGIN || !env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET || !/^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_REPO || '')) throw new Error();
-    } catch { return message('Login service needs owner configuration.', 503); }
+      if (origin.protocol !== 'https:' || origin.origin !== env.ALLOWED_ORIGIN) throw new Error();
+    } catch { if (env.ALLOWED_ORIGIN) invalid.push('ALLOWED_ORIGIN'); origin = null; }
+    if (env.GITHUB_REPO && !/^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_REPO)) invalid.push('GITHUB_REPO');
+    const configured = missing.length === 0 && invalid.length === 0;
+    if (url.pathname === '/status') {
+      return new Response(JSON.stringify({configured, missing, invalid}), {headers: {
+        ...baseHeaders, 'Content-Type': 'application/json',
+        ...(origin ? {'Access-Control-Allow-Origin': origin.origin, Vary: 'Origin'} : {})
+      }});
+    }
+    if (!configured) return message('Login service needs owner configuration.', 503);
     if (url.pathname === '/auth') {
       if (url.searchParams.get('provider') && url.searchParams.get('provider') !== 'github') return message('Unsupported login provider.');
       // Ignore caller-supplied scope and redirect URLs; only this repo's public access is needed.
