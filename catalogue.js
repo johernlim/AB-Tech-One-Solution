@@ -4,6 +4,7 @@ const categories = productCategories.map(category => category.name);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
 const params = new URLSearchParams(location.search);
 const hasCategory = categories.includes(params.get('category'));
+const selectedCategory = hasCategory ? params.get('category') : null;
 const browsingProducts = hasCategory || params.get('view') === 'all';
 let category = hasCategory ? params.get('category') : 'All products';
 let products = [];
@@ -32,6 +33,8 @@ function imagePath(path) {
 function filters() {
   const nav = document.getElementById('category-filters');
   nav.replaceChildren();
+  nav.hidden = hasCategory;
+  if (hasCategory) return;
   ['All products', ...categories].forEach(name => {
     const button = element('button', '', name);
     button.type = 'button';
@@ -123,8 +126,10 @@ function render() {
 }
 search.addEventListener('input', render); sort.addEventListener('change', render);
 document.getElementById('reset-filters').addEventListener('click', () => {
-  search.value = ''; category = 'All products'; sort.value = 'featured';
-  const url = new URL(location.href); url.searchParams.delete('category'); url.searchParams.set('view', 'all'); history.replaceState(null, '', url);
+  search.value = ''; category = selectedCategory || 'All products'; sort.value = 'featured';
+  if (!hasCategory) {
+    const url = new URL(location.href); url.searchParams.delete('category'); url.searchParams.set('view', 'all'); history.replaceState(null, '', url);
+  }
   filters(); render();
 });
 document.getElementById('close-dialog').addEventListener('click', () => dialog.close());
@@ -136,10 +141,28 @@ dialog.addEventListener('close', () => activeProductButton?.focus());
 document.getElementById('year').textContent = new Date().getFullYear();
 document.getElementById('category-landing').hidden = browsingProducts;
 document.getElementById('product-browser').hidden = !browsingProducts;
+if (hasCategory) {
+  document.querySelector('.sort-field').hidden = true;
+  search.placeholder = 'Search ' + selectedCategory + ' products…';
+  document.querySelector('#empty-state p').textContent = 'Try another keyword to search this category.';
+  document.getElementById('reset-filters').textContent = 'Clear search';
+}
+try {
+  const key = 'abtech-home-return:' + new URL('.', location.href).pathname;
+  const saved = JSON.parse(sessionStorage.getItem(key));
+  if (saved && Number.isFinite(saved.y) && saved.y >= 0) {
+    const home = new URL(saved.url);
+    const directory = new URL('.', location.href).pathname;
+    if (home.origin === location.origin && [directory, directory + 'index.html'].includes(home.pathname)) {
+      home.searchParams.set('return', 'services');
+      document.querySelector('main .back-link').href = home.href;
+    }
+  }
+} catch { /* Normal home navigation remains available when storage is unavailable. */ }
 if (browsingProducts) {
 document.getElementById('count-label').textContent = 'products to explore';
 filters();
-Promise.all(productCategories.map(async ({name, slug}) => {
+Promise.all(productCategories.filter(item => !hasCategory || item.name === selectedCategory).map(async ({name, slug}) => {
   const response = await fetch('data/categories/' + slug + '.json');
   if (!response.ok) throw new Error('Catalogue unavailable');
   const data = await response.json();
