@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "switch",
+      "name": "8-Port Gigabit Network Switch",
+      "category": "Network Infrastructure",
+      "image": "assets/products/network.svg",
+      "gallery": [],
+      "price": 159,
+      "price_mode": "fixed",
+      "description": "An example network switch to connect computers and business devices.",
+      "specifications": [
+        "8 gigabit network ports",
+        "Desktop-sized design",
+        "Wired local network concept"
+      ],
+      "installation": "Network cabling and installation quoted separately.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

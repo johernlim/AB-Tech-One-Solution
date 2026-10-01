@@ -73,9 +73,15 @@ const fs = require('node:fs');
     await page.getByRole('button', {name: 'Login', exact: true}).click();
     await page.getByText('Products', {exact: true}).first().waitFor();
     assert.equal(await page.locator('#editor-error').isVisible(), false);
+    const {productCategories} = await import('../product-categories.js');
+    for (const {name, slug} of productCategories) {
+      assert.equal(await page.getByRole('link', {name, exact: true}).getAttribute('href'), '#/collections/' + slug);
+    }
+    await page.screenshot({path: '.preview/admin-categories.png', fullPage: true});
     await page.getByText('Products', {exact: true}).first().click();
     await page.waitForTimeout(1500);
-    await page.frameLocator('iframe').locator('.product-card').nth(11).waitFor();
+    await page.frameLocator('iframe').locator('.product-card').nth(1).waitFor();
+    assert.equal(await page.frameLocator('iframe').locator('.product-card').count(), 2);
     await page.screenshot({path: '.preview/admin-editor.png', fullPage: true});
     console.log('Browser errors:', errors);
     assert.deepEqual(errors, []);

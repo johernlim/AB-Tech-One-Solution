@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "alarm",
+      "name": "Wireless Alarm Starter Kit",
+      "category": "Alarm Systems",
+      "image": "assets/products/alarm.svg",
+      "gallery": [],
+      "price": 699,
+      "price_mode": "from",
+      "description": "An example starter system for monitoring doors and movement.",
+      "specifications": [
+        "Control hub, door sensor and motion sensor",
+        "Phone notification concept",
+        "Expandable sensor coverage"
+      ],
+      "installation": "Installation and additional sensors quoted separately.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

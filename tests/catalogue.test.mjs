@@ -4,7 +4,13 @@ import {readFile, access} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 
 const root = new URL('../', import.meta.url);
-const data = JSON.parse(await readFile(new URL('data/products.json', root), 'utf8'));
+import {productCategories} from '../product-categories.js';
+const groups = await Promise.all(productCategories.map(async ({name, slug}) => {
+  const data = JSON.parse(await readFile(new URL('data/categories/' + slug + '.json', root), 'utf8'));
+  assert.ok(data.products.every(product => product.category === name));
+  return data.products;
+}));
+const data = {products: groups.flat()};
 const categories = ['CCTV Systems', 'Alarm Systems', 'Door Access Control', 'Computers & Laptops', 'POS Systems', 'Network Infrastructure', 'WiFi Solutions', 'Server Solutions', 'Software Solutions', 'Digital Signage'];
 
 test('Examples cover all categories, have unique IDs, safe images and explicit example labelling', async () => {

@@ -1,5 +1,6 @@
 'use strict';
-const categories = ['CCTV Systems', 'Alarm Systems', 'Door Access Control', 'Computers & Laptops', 'POS Systems', 'Network Infrastructure', 'WiFi Solutions', 'Server Solutions', 'Software Solutions', 'Digital Signage'];
+import {productCategories} from './product-categories.js';
+const categories = productCategories.map(category => category.name);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
 const params = new URLSearchParams(location.search);
 const hasCategory = categories.includes(params.get('category'));
@@ -138,11 +139,13 @@ document.getElementById('product-browser').hidden = !browsingProducts;
 if (browsingProducts) {
 document.getElementById('count-label').textContent = 'products to explore';
 filters();
-fetch('data/products.json').then(response => {
+Promise.all(productCategories.map(async ({name, slug}) => {
+  const response = await fetch('data/categories/' + slug + '.json');
   if (!response.ok) throw new Error('Catalogue unavailable');
-  return response.json();
-}).then(data => {
-  products = data.products.filter(p => p.published === true);
+  const data = await response.json();
+  return data.products.filter(p => p.published === true).map(p => ({...p, category: name}));
+})).then(groups => {
+  products = groups.flat();
   document.getElementById('total-count').textContent = products.length;
   document.getElementById('example-notice').hidden = !products.some(p => p.example);
   grid.setAttribute('aria-busy', 'false'); render();

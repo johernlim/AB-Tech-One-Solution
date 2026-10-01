@@ -5,14 +5,14 @@ The customer catalogue and admin demo work immediately on the existing GitHub Pa
 ## Architecture
 
 - Existing static HTML/CSS/JavaScript website: category filters, search, sorting and product details.
-- `data/products.json`: product information, maintained through a Decap CMS list editor.
+- `data/categories/*.json`: one product file per category, maintained through separate Decap CMS category collections. `product-categories.js` defines the shared category names and file paths.
 - `assets/uploads`: employee-uploaded photos. Example illustrations are in `assets/products`.
 - `/admin/`: staff entry page; `/admin/?demo=1` runs the same editor against an in-memory test repository.
 - GitHub: product storage, authorisation and change history.
 - Cloudflare Pages: production static hosting; no database or build command needed.
 - Cloudflare Worker: GitHub OAuth exchange, state verification and repository access check.
 
-The demo resets on reload. Saving in the demo does **not** update the website or GitHub. Live editing saves the complete product list as a commit; staff should coordinate edits to avoid overwriting simultaneous changes.
+The demo resets on reload. Saving in the demo does **not** update the website or GitHub. Live editing saves the selected category's product list as a commit; staff should coordinate edits within the same category to avoid overwriting simultaneous changes. New products inherit the selected category. A category may be empty.
 
 ## One-time owner connection
 
@@ -30,12 +30,12 @@ These connections require owner access to GitHub and Cloudflare. The supplied co
 
 ## Staff editing
 
-1. Open **Product catalogue → Products**.
+1. Open **the category you want (for example CCTV Systems) → Products**.
 2. Expand a product to edit it, use **Add product** for a new one, or remove an item from the list to delete it.
-3. Upload a compressed image, choose a category, and enter description, price and installation details.
+3. Upload a compressed image, and enter description, price and installation details.
 4. Choose a fixed price, a starting price, or **Request a quote**. Prices support cents.
 5. Enable **Visible in catalogue** when ready. Leave **Example product** on until the product, image, pricing and stock information have been confirmed.
-6. Save/publish the catalogue. Changes become public after the hosting deployment completes.
+6. Publish the selected category. Changes become public after the hosting deployment completes.
 
 The public catalogue includes only items marked visible. Hidden items still exist in the public JSON and Git history: this is a visibility toggle, **not private storage**. Do not enter customer information, confidential supplier prices or credentials.
 

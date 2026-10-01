@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "software",
+      "name": "Business Software Setup",
+      "category": "Software Solutions",
+      "image": "assets/products/software.svg",
+      "gallery": [],
+      "price": 0,
+      "price_mode": "quote",
+      "description": "An example service for installing and connecting your business applications.",
+      "specifications": [
+        "Software requirements review",
+        "Installation and configuration",
+        "Licensing quoted by application"
+      ],
+      "installation": "Scope and support quoted after discussing your needs.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

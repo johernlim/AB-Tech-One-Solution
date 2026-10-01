@@ -1,0 +1,42 @@
+{
+  "products": [
+    {
+      "id": "cctv-turret",
+      "name": "4MP Indoor Turret Camera",
+      "category": "CCTV Systems",
+      "image": "assets/products/cctv.svg",
+      "gallery": [],
+      "price": 249,
+      "price_mode": "fixed",
+      "description": "A compact camera concept for shop floors, entrances and indoor monitoring.",
+      "specifications": [
+        "4MP camera concept",
+        "Infrared night viewing",
+        "Network video recorder compatible"
+      ],
+      "installation": "Installation quoted separately.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    },
+    {
+      "id": "cctv-kit",
+      "name": "4-Camera CCTV Starter Package",
+      "category": "CCTV Systems",
+      "image": "assets/products/cctv.svg",
+      "gallery": [],
+      "price": 1499,
+      "price_mode": "from",
+      "description": "An example four-camera setup for a small shop or office.",
+      "specifications": [
+        "4 camera package concept",
+        "Recorder and storage included in example",
+        "Remote viewing setup"
+      ],
+      "installation": "Final installation and cabling price depends on a site assessment.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

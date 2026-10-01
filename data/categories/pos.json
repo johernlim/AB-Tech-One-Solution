@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "pos",
+      "name": "Retail POS Starter Set",
+      "category": "POS Systems",
+      "image": "assets/products/pos.svg",
+      "gallery": [],
+      "price": 1899,
+      "price_mode": "from",
+      "description": "A counter setup concept for retail and food businesses.",
+      "specifications": [
+        "Touchscreen terminal concept",
+        "Receipt printer and cash drawer",
+        "Software licence quoted separately"
+      ],
+      "installation": "On-site setup and training quoted separately.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

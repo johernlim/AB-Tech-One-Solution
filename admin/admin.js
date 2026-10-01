@@ -1,6 +1,6 @@
 'use strict';
 const demo = new URLSearchParams(location.search).get('demo') === '1';
-const categories = ['CCTV Systems', 'Alarm Systems', 'Door Access Control', 'Computers & Laptops', 'POS Systems', 'Network Infrastructure', 'WiFi Solutions', 'Server Solutions', 'Software Solutions', 'Digital Signage'];
+import {productCategories} from '../product-categories.js';
 const liveButton = document.getElementById('open-live');
 
 function config(settings, isDemo) {
@@ -11,14 +11,14 @@ function config(settings, isDemo) {
     site_url: new URL('../', location.href).href,
     display_url: new URL('../catalogue.html', location.href).href,
     logo_url: new URL('../assets/logo.png', location.href).href,
-    collections: [{
-      name: 'catalogue', label: 'Product catalogue', description: 'Open Products, expand an item to edit, or use Add product. Save publishes the whole catalogue. Keep Example enabled until information is verified.',
-      files: [{name: 'products', label: 'Products', file: 'data/products.json', fields: [{
-        name: 'products', label: 'Products', widget: 'list', label_singular: 'Product', summary: '{{fields.name}} — {{fields.category}}', collapsed: true,
+    collections: productCategories.map(({name, slug}) => ({
+      name: slug, label: name, description: 'Open Products to add, edit or delete products in ' + name + '. Publish saves this category. Keep Example enabled until information is verified.',
+      files: [{name: slug, label: 'Products', file: 'data/categories/' + slug + '.json', fields: [{
+        name: 'products', label: 'Products', widget: 'list', required: false, label_singular: 'Product', summary: '{{fields.name}}', collapsed: true,
         fields: [
           {name: 'id', label: 'Product ID', widget: 'string', hint: 'A unique short ID, such as indoor-camera-4mp.', pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens.']},
           {name: 'name', label: 'Product name', widget: 'string'},
-          {name: 'category', label: 'Category', widget: 'select', options: categories},
+          {name: 'category', label: 'Category', widget: 'hidden', default: name},
           {name: 'description', label: 'Description', widget: 'text'},
           {name: 'image', label: 'Main photo', widget: 'image', allow_multiple: false, choose_url: false, hint: 'Upload a compressed JPG, PNG or WebP. Aim for less than 500 KB.'},
           {name: 'gallery', label: 'Extra photos', widget: 'list', required: false, field: {name: 'photo', label: 'Photo', widget: 'image', allow_multiple: false, choose_url: false}},
@@ -31,17 +31,21 @@ function config(settings, isDemo) {
           {name: 'example', label: 'Example product', widget: 'boolean', default: true, hint: 'Turn off only after the product, image and price have been confirmed.'}
         ]
       }]}]
-    }]
+    }))
   };
 }
 
 async function openEditor(settings, isDemo) {
   try {
     if (isDemo) {
-      const response = await fetch('../data/products.json');
-      if (!response.ok) throw new Error('Could not load example products.');
-      // Seed Decap's in-memory test repository. This never writes to GitHub.
-      window.repoFiles = {data: {'products.json': {path: 'data/products.json', content: JSON.stringify(await response.json())}}};
+      const entries = await Promise.all(productCategories.map(async ({slug}) => {
+        const path = 'data/categories/' + slug + '.json';
+        const response = await fetch('../' + path);
+        if (!response.ok) throw new Error('Could not load example products.');
+        return [slug + '.json', {path, content: JSON.stringify(await response.json())}];
+      }));
+      // Seed isolated category files in Decap's in-memory demo repository.
+      window.repoFiles = {data: {categories: Object.fromEntries(entries)}};
     }
     document.getElementById('admin-home').hidden = true;
     document.getElementById('editor-notice').hidden = false;
@@ -53,12 +57,12 @@ async function openEditor(settings, isDemo) {
     window.CMS.init({config: config(settings, isDemo)});
     window.CMS.registerPreviewStyle(new URL('../styles.css', location.href).href);
     window.CMS.registerPreviewStyle(new URL('../catalogue.css', location.href).href);
-    window.CMS.registerPreviewTemplate('products', ({entry, getAsset}) => {
+    productCategories.forEach(({name, slug}) => window.CMS.registerPreviewTemplate(slug, ({entry, getAsset}) => {
       const list = entry.getIn(['data', 'products']);
       const items = list ? list.toJS() : [];
       const h = window.h;
       return h('div', {style: {padding: '24px', background: '#16232c', minHeight: '100vh'}},
-        h('h2', {style: {marginBottom: '12px'}}, 'Catalogue preview'),
+        h('h2', {style: {marginBottom: '12px'}}, name + ' preview'),
         h('p', {style: {marginBottom: '24px', fontSize: '12px'}}, 'Only visible products appear on the public website.'),
         h('div', {className: 'products-grid', style: {gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))'}}, ...items.filter(p => p.published).map((p, index) => {
           let image = p.image || '';
@@ -67,12 +71,12 @@ async function openEditor(settings, isDemo) {
           return h('article', {className: 'product-card', key: index},
             h('img', {src: image, alt: p.name || '', style: {width: '100%', aspectRatio: '16/11', objectFit: 'contain'}}),
             h('div', {className: 'product-card-copy'},
-              h('span', {className: 'product-category'}, p.category),
+              h('span', {className: 'product-category'}, name),
               h('h3', null, p.name), h('p', null, p.description),
               h('p', {style: {color: '#d4fcee', fontSize: '20px'}}, p.price_mode === 'quote' ? 'Request a quote' : (p.price_mode === 'from' ? 'From ' : '') + new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'}).format(p.price || 0)),
               p.example ? h('span', {className: 'sample-badge'}, 'EXAMPLE PRODUCT') : null));
         })));
-    });
+    }));
   } catch (error) {
     const message = document.getElementById('editor-error'); message.hidden = false; message.textContent = error.message;
   }

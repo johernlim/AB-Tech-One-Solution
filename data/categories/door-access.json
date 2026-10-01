@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "access",
+      "name": "Fingerprint Door Access Terminal",
+      "category": "Door Access Control",
+      "image": "assets/products/access.svg",
+      "gallery": [],
+      "price": 599,
+      "price_mode": "fixed",
+      "description": "A door entry terminal concept for managing staff access.",
+      "specifications": [
+        "Fingerprint, card and PIN entry concept",
+        "Entry logging",
+        "Suitable for office access planning"
+      ],
+      "installation": "Door lock, wiring and installation quoted separately.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "laptop",
+      "name": "Everyday Business Laptop",
+      "category": "Computers & Laptops",
+      "image": "assets/products/laptop.svg",
+      "gallery": [],
+      "price": 2299,
+      "price_mode": "from",
+      "description": "An example laptop specification for documents, meetings and everyday work.",
+      "specifications": [
+        "16 GB memory concept",
+        "512 GB SSD concept",
+        "14-inch display concept"
+      ],
+      "installation": "Device setup can be included in your quote.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

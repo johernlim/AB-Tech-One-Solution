@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "signage",
+      "name": "43-inch Digital Signage Display",
+      "category": "Digital Signage",
+      "image": "assets/products/signage.svg",
+      "gallery": [],
+      "price": 1699,
+      "price_mode": "from",
+      "description": "A display concept for promotional content, menus and customer information.",
+      "specifications": [
+        "43-inch screen concept",
+        "Menu and promotional layouts",
+        "Media player quoted separately"
+      ],
+      "installation": "Mounting and content setup quoted separately.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

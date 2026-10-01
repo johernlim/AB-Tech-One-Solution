@@ -1,0 +1,42 @@
+{
+  "products": [
+    {
+      "id": "wifi",
+      "name": "Ceiling WiFi Access Point",
+      "category": "WiFi Solutions",
+      "image": "assets/products/wifi.svg",
+      "gallery": [],
+      "price": 399,
+      "price_mode": "fixed",
+      "description": "A ceiling access point concept for extending wireless coverage.",
+      "specifications": [
+        "Dual-band wireless concept",
+        "Ceiling mounting",
+        "Coverage depends on layout and walls"
+      ],
+      "installation": "Installation and coverage planning quoted separately.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    },
+    {
+      "id": "wifi-mesh",
+      "name": "Office WiFi Coverage Package",
+      "category": "WiFi Solutions",
+      "image": "assets/products/wifi.svg",
+      "gallery": [],
+      "price": 999,
+      "price_mode": "from",
+      "description": "An example multi-access-point package for a more connected workspace.",
+      "specifications": [
+        "Multiple access point concept",
+        "Coverage planning",
+        "Separate guest network setup"
+      ],
+      "installation": "Final price depends on building size and cabling.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}

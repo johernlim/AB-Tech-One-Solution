@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "id": "server",
+      "name": "Small Business Server Setup",
+      "category": "Server Solutions",
+      "image": "assets/products/server.svg",
+      "gallery": [],
+      "price": 0,
+      "price_mode": "quote",
+      "description": "A server solution concept for shared files, backups and business software.",
+      "specifications": [
+        "Hardware sized to workload",
+        "Shared file and user access setup",
+        "Backup plan tailored to your business"
+      ],
+      "installation": "Hardware, licences and installation quoted after assessment.",
+      "availability": "Example — contact us to confirm availability",
+      "published": true,
+      "example": true
+    }
+  ]
+}
