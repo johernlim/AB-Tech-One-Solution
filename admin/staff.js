@@ -147,7 +147,7 @@ async function initialize() {
     const response = await fetch('settings.json', {cache: 'no-store'}); if (!response.ok) throw new Error();
     const settings = await response.json(); base = settings.auth_base_url;
     const status = await api('status');
-    if (status.configured) {$('staff-login').disabled = false; $('staff-register').disabled = false; $('staff-setup-status').textContent = 'Account creation requires an invitation code from the owner.';}
+    if (status.configured) {$('staff-login').disabled = false; $('staff-register').disabled = false; $('staff-setup-status').textContent = ''; $('staff-setup-status').hidden = true;}
     else $('staff-setup-status').textContent = 'Staff accounts need a one-time owner setup. Existing owners can use GitHub below.';
   } catch {$('staff-setup-status').textContent = 'Staff login is temporarily unavailable. Existing owners can use GitHub below.';}
 }
