@@ -1,4 +1,5 @@
 import {productCategories} from '../product-categories.js';
+import {validPassword, passwordRequirement} from '../password-policy.js';
 const $ = id => document.getElementById(id);
 let base, token, username, selected = productCategories[0], products = [], sha, editing = -1, busy = false;
 function notice(id, text, error = false) { $(id).textContent = text; $(id).dataset.error = String(error); }
@@ -90,7 +91,10 @@ async function initialize() {
     const input = $(button.dataset.for), show = input.type === 'password'; input.type = show ? 'text' : 'password'; button.textContent = show ? 'Hide' : 'Show'; button.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); button.setAttribute('aria-pressed', String(show));
   }));
   $('confirm-password').addEventListener('input', () => $('confirm-password').setCustomValidity(''));
-  $('register-password').addEventListener('input', () => $('confirm-password').setCustomValidity(''));
+  $('register-password').addEventListener('input', () => {
+    $('confirm-password').setCustomValidity('');
+    $('register-password').setCustomValidity(validPassword($('register-password').value) ? '' : passwordRequirement);
+  });
   for (const [id, register] of [['login-form', false], ['register-form', true]]) $(id).addEventListener('submit', async event => {
     event.preventDefault(); if (busy) return;
     const form = event.currentTarget;

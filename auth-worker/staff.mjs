@@ -1,4 +1,6 @@
 import {productCategories} from '../product-categories.js';
+import {validPassword, passwordRequirement} from '../password-policy.js';
+export {validPassword} from '../password-policy.js';
 const encoder = new TextEncoder();
 const hex = bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
 const bytes = value => Uint8Array.from(value.match(/../g), pair => parseInt(pair, 16));
@@ -7,7 +9,6 @@ const digest = async value => hex(await crypto.subtle.digest('SHA-256', encoder.
 const equal = (a, b) => { if (a.length !== b.length) return false; let difference = 0; for (let i = 0; i < a.length; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i); return difference === 0; };
 export const normalizeUsername = value => typeof value === 'string' ? value.trim().toLowerCase() : '';
 export const validUsername = value => /^[a-z0-9][a-z0-9_]{2,23}$/.test(value);
-export const validPassword = value => typeof value === 'string' && value.length >= 16 && value.length <= 128;
 export async function passwordHash(password, salt, pepper) {
   // HMAC pepper stays outside D1. Web Crypto uses a separate random salt per account.
   const key = await crypto.subtle.importKey('raw', encoder.encode(pepper), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
@@ -90,9 +91,10 @@ export async function handleStaff(request, env) {
       const data = await body(request);
       const username = normalizeUsername(data.username);
       if (!validUsername(username)) return json({error: 'Username must be 3–24 letters, numbers or underscores, starting with a letter or number.'}, 400);
-      if (!validPassword(data.password)) return json({error: 'Use a password or passphrase with 16–128 characters.'}, 400);
+      if (typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 128) return json({error: 'Password must contain 8–128 characters.'}, 400);
       if (!await rateLimit(env, 'user:' + username, 10)) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
       if (url.pathname === '/staff/register') {
+        if (!validPassword(data.password)) return json({error: passwordRequirement}, 400);
         if (typeof data.invitation !== 'string' || data.invitation.length > 200 || !equal(await digest(data.invitation), await digest(env.STAFF_INVITE_CODE))) return json({error: 'The invitation code is incorrect. Ask the owner for a valid code.'}, 403);
         if (data.password !== data.confirmPassword) return json({error: 'The passwords do not match.'}, 400);
         const salt = random();

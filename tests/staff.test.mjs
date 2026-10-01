@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
-import {handleStaff, passwordHash, validateProducts} from '../auth-worker/staff.mjs';
+import {handleStaff, passwordHash, validateProducts, validPassword} from '../auth-worker/staff.mjs';
 const origin = 'https://ab-tech-one-solution.pages.dev';
-const password = 'a long staff passphrase 123';
+const password = 'Camera1!';
 const sqlite = new DatabaseSync(':memory:');
 sqlite.exec(await readFile(new URL('../auth-worker/staff-schema.sql', import.meta.url), 'utf8'));
 const db = {prepare(sql) {
@@ -15,6 +15,16 @@ const db = {prepare(sql) {
 const env = {ALLOWED_ORIGIN: origin, GITHUB_REPO: 'johernlim/AB-Tech-One-Solution', STAFF_DB: db, STAFF_INVITE_CODE: 'invitation-code-for-trusted-staff', STAFF_PASSWORD_PEPPER: 'a-test-only-password-pepper-of-32-characters', GITHUB_CATALOGUE_TOKEN: 'private-github-token'};
 const request = (path, method = 'GET', data, token, source = origin) => new Request('https://auth.workers.dev/staff/' + path, {method, headers: {Origin: source, 'Content-Type': 'application/json', 'CF-Connecting-IP': '127.0.0.1', ...(token ? {Authorization: 'Bearer ' + token} : {})}, ...(data ? {body: JSON.stringify(data)} : {})});
 const account = {username: 'Test_Staff', password, confirmPassword: password, invitation: env.STAFF_INVITE_CODE};
+test.beforeEach(() => sqlite.exec('DELETE FROM staff_attempts'));
+
+test('Registration requires eight characters, a number and a special symbol', async () => {
+  assert.equal(validPassword('Camera1!'), true);
+  assert.equal(validPassword('Camera1_'), true);
+  for (const value of ['Short1!', 'Password!', 'Password1', 'Password1 ', 'a'.repeat(127) + '1!']) {
+    assert.equal(validPassword(value), false);
+    assert.equal((await handleStaff(request('register', 'POST', {...account, password: value, confirmPassword: value}), env)).status, 400);
+  }
+});
 
 test('Staff registration, uniqueness, private passwords and session revocation', async () => {
   assert.equal((await handleStaff(request('register', 'POST', {...account, invitation: 'wrong'}), env)).status, 403);
@@ -67,7 +77,7 @@ test('Publishing uses the private GitHub token and rejects stale edits', async (
   } finally {globalThis.fetch = original;}
 });
 test('Expired sessions and repeated login attempts are rejected', async () => {
-  const login = await handleStaff(request('login', 'POST', account), env); const {token} = await login.json();
+  const login = await handleStaff(request('login', 'POST', account), env); assert.equal(login.status, 200); const {token} = await login.json();
   sqlite.exec('UPDATE staff_sessions SET expires_at=0');
   assert.equal((await handleStaff(request('me', 'GET', undefined, token), env)).status, 401);
   let response;
