@@ -39,10 +39,15 @@ async function body(request, limit = 10000) {
   for (const chunk of chunks) {combined.set(chunk, offset); offset += chunk.length;}
   return JSON.parse(new TextDecoder().decode(combined));
 }
-async function rateLimit(env, key, maximum, seconds = 900) {
+async function reserveAttempt(env, key, maximum, seconds = 900) {
   const now = Math.floor(Date.now() / 1000);
-  const row = await env.STAFF_DB.prepare('INSERT INTO staff_attempts (key,count,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires_at<=? THEN 1 ELSE count+1 END,expires_at=CASE WHEN expires_at<=? THEN excluded.expires_at ELSE expires_at END RETURNING count').bind(key, now + seconds, now, now).first();
-  return row.count <= maximum;
+  // Reserve before password hashing so parallel requests cannot bypass the limit.
+  const row = await env.STAFF_DB.prepare('INSERT INTO staff_attempts (key,count,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires_at<=? THEN 1 ELSE count+1 END,expires_at=CASE WHEN expires_at<=? THEN excluded.expires_at ELSE expires_at END WHERE expires_at<=? OR count<? RETURNING expires_at').bind(key, now + seconds, now, now, now, maximum).first();
+  return row ? {key, expiresAt: row.expires_at} : null;
+}
+async function releaseAttempts(env, attempts) {
+  // Release only this request's slots, preserving other failures and newer windows.
+  await env.STAFF_DB.batch(attempts.map(({key, expiresAt}) => env.STAFF_DB.prepare('UPDATE staff_attempts SET count=MAX(0,count-1) WHERE key=? AND expires_at=?').bind(key, expiresAt)));
 }
 async function session(request, env) {
   const token = request.headers.get('Authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
@@ -90,14 +95,18 @@ export async function handleStaff(request, env) {
     if (!readiness.loginConfigured) return json({error: 'Login is temporarily unavailable. Please contact the owner and try again shortly.'}, 503);
     if (url.pathname === '/staff/register' && !readiness.registrationConfigured) return json({error: 'Account creation is temporarily unavailable. The owner needs to restore the invitation code.'}, 503);
     if (['/staff/register', '/staff/login'].includes(url.pathname) && request.method === 'POST') {
+      const registering = url.pathname === '/staff/register';
+      const scope = registering ? 'register' : 'login';
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-      if (!await rateLimit(env, 'ip:' + await digest(ip), 20)) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
+      const ipAttempt = await reserveAttempt(env, scope + ':ip:' + await digest(ip), 20);
+      if (!ipAttempt) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
       const data = await body(request);
       const username = normalizeUsername(data.username);
       if (!validUsername(username)) return json({error: 'Username must be 3–24 letters, numbers or underscores, starting with a letter or number.'}, 400);
       if (typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 128) return json({error: 'Password must contain 8–128 characters.'}, 400);
-      if (!await rateLimit(env, 'user:' + username, 10)) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
-      if (url.pathname === '/staff/register') {
+      const userAttempt = await reserveAttempt(env, scope + ':user:' + username, 10);
+      if (!userAttempt) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
+      if (registering) {
         if (!validPassword(data.password)) return json({error: passwordRequirement}, 400);
         if (typeof data.invitation !== 'string' || data.invitation.length > 200 || !equal(await digest(data.invitation), await digest(env.STAFF_INVITE_CODE))) return json({error: 'The invitation code is incorrect. Ask the owner for a valid code.'}, 403);
         if (data.password !== data.confirmPassword) return json({error: 'The passwords do not match.'}, 400);
@@ -107,15 +116,21 @@ export async function handleStaff(request, env) {
         if (!result.meta.changes) return json({error: 'That username is already taken. Choose another username.'}, 409);
         return json({message: 'Account created. You can now log in.'}, 201);
       }
-      const user = await env.STAFF_DB.prepare('SELECT * FROM staff_users WHERE username=?').bind(username).first();
-      const hash = await passwordHash(data.password, user?.salt || '00'.repeat(32), env.STAFF_PASSWORD_PEPPER);
-      if (!user || !equal(hash, user.password_hash)) return json({error: 'Username or password is incorrect.'}, 401);
-      const token = random();
-      await env.STAFF_DB.batch([
-        env.STAFF_DB.prepare('DELETE FROM staff_sessions WHERE expires_at<=?').bind(Math.floor(Date.now() / 1000)),
-        env.STAFF_DB.prepare('INSERT INTO staff_sessions (token_hash,user_id,expires_at) VALUES (?,?,?)').bind(await digest(token), user.id, Math.floor(Date.now() / 1000) + 28800)
-      ]);
-      return json({token, username: user.username});
+      let authenticated = false;
+      try {
+        const user = await env.STAFF_DB.prepare('SELECT * FROM staff_users WHERE username=?').bind(username).first();
+        const hash = await passwordHash(data.password, user?.salt || '00'.repeat(32), env.STAFF_PASSWORD_PEPPER);
+        if (!user || !equal(hash, user.password_hash)) return json({error: 'Username or password is incorrect.'}, 401);
+        authenticated = true;
+        const token = random();
+        await env.STAFF_DB.batch([
+          env.STAFF_DB.prepare('DELETE FROM staff_sessions WHERE expires_at<=?').bind(Math.floor(Date.now() / 1000)),
+          env.STAFF_DB.prepare('INSERT INTO staff_sessions (token_hash,user_id,expires_at) VALUES (?,?,?)').bind(await digest(token), user.id, Math.floor(Date.now() / 1000) + 28800)
+        ]);
+        return json({token, username: user.username});
+      } finally {
+        if (authenticated) await releaseAttempts(env, [ipAttempt, userAttempt]);
+      }
     }
     const user = await session(request, env);
     if (!user) return json({error: 'Please log in again.'}, 401);

@@ -35,7 +35,9 @@ After setup, refresh `/admin/`, choose **Create account**, enter a unique userna
 
 ## Sessions, limits and account recovery
 
-Passwords are stored as salted PBKDF2-SHA256 hashes with an HMAC pepper outside the database, using 100,000 iterations to fit the Workers runtime cap. Login/registration attempts are limited per IP and username. The invitation is validated server-side. Browser session tokens are held only in page memory, stored hashed in D1 and expire after eight hours. Refreshing the page requires logging in again. Logout revokes the session. Changes from a stale category are rejected instead of overwriting another staff member's work.
+Passwords are stored as salted PBKDF2-SHA256 hashes with an HMAC pepper outside the database, using 100,000 iterations to fit the Workers runtime cap. Login protection allows 20 failed attempts per IP and 10 per username within a 15-minute window. Requests reserve a slot atomically before password verification to bound concurrent checks; successful verification releases its slots without clearing other failures. Successful repeat logins therefore do not accumulate toward a daily or 15-minute login limit. A burst of simultaneous checks can still be temporarily limited. Registration has separate attempt counters (20 per IP and 10 per username in 15 minutes), so account creation cannot consume the login allowance. Existing authenticated product editing is unaffected by these login limits. No database migration is needed; older combined counters are ignored.
+
+The invitation is validated server-side. Browser session tokens are held only in page memory, stored hashed in D1 and expire after eight hours. Refreshing the page requires logging in again. Logout revokes the session. Changes from a stale category are rejected instead of overwriting another staff member's work.
 
 There is no email/password reset service. The owner can revoke sessions in the D1 Console using a parameter appropriate to the account:
 

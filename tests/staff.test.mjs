@@ -89,11 +89,61 @@ test('Publishing uses the private GitHub token and rejects stale edits', async (
     assert.equal((await handleStaff(request('categories/not-a-category', 'PUT', {products}, token), env)).status, 404);
   } finally {globalThis.fetch = original;}
 });
-test('Expired sessions and repeated login attempts are rejected', async () => {
+test('Expired sessions are rejected', async () => {
   const login = await handleStaff(request('login', 'POST', account), env); assert.equal(login.status, 200); const {token} = await login.json();
   sqlite.exec('UPDATE staff_sessions SET expires_at=0');
   assert.equal((await handleStaff(request('me', 'GET', undefined, token), env)).status, 401);
-  let response;
-  for (let i = 0; i < 21; i++) response = await handleStaff(request('login', 'POST', account), env);
-  assert.equal(response.status, 429);
+});
+
+test('Repeated successful staff logins on office Wi-Fi do not consume the failure allowance', async () => {
+  const colleague = {...account, username: 'office_colleague'};
+  assert.equal((await handleStaff(request('register', 'POST', colleague), env)).status, 201);
+  for (let i = 0; i < 32; i++) {
+    const response = await handleStaff(request('login', 'POST', i % 2 ? colleague : account), env);
+    assert.equal(response.status, 200);
+    const {token} = await response.json();
+    assert.equal((await handleStaff(request('logout', 'POST', undefined, token), env)).status, 200);
+  }
+  assert.equal(sqlite.prepare("SELECT SUM(count) AS count FROM staff_attempts WHERE key LIKE 'login:%'").get().count, 0);
+});
+
+test('Successful logins preserve failures; blocked login does not block an existing editing session', async () => {
+  const wrong = {...account, password: 'Incorrect1!'};
+  for (let i = 0; i < 3; i++) assert.equal((await handleStaff(request('login', 'POST', wrong), env)).status, 401);
+  const login = await handleStaff(request('login', 'POST', account), env);
+  assert.equal(login.status, 200); const {token} = await login.json();
+  assert.equal(sqlite.prepare("SELECT count FROM staff_attempts WHERE key='login:user:test_staff'").get().count, 3);
+  assert.equal(sqlite.prepare("SELECT count FROM staff_attempts WHERE key LIKE 'login:ip:%'").get().count, 3);
+  for (let i = 3; i < 10; i++) assert.equal((await handleStaff(request('login', 'POST', wrong), env)).status, 401);
+  assert.equal((await handleStaff(request('login', 'POST', account), env)).status, 429);
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => Response.json({content: {sha: 'c'.repeat(40)}});
+    const {products} = JSON.parse(await readFile(new URL('../data/categories/cctv.json', import.meta.url), 'utf8'));
+    assert.equal((await handleStaff(request('categories/cctv', 'PUT', {sha: 'b'.repeat(40), products}, token), env)).status, 200);
+  } finally {globalThis.fetch = original;}
+  sqlite.exec('UPDATE staff_attempts SET expires_at=0');
+  assert.equal((await handleStaff(request('login', 'POST', account), env)).status, 200);
+});
+
+test('Parallel incorrect passwords cannot bypass the username allowance', async () => {
+  const responses = await Promise.all(Array.from({length: 25}, () => handleStaff(request('login', 'POST', {...account, password: 'Incorrect1!'}), env)));
+  assert.equal(responses.filter(response => response.status === 401).length, 10);
+  assert.equal(responses.filter(response => response.status === 429).length, 15);
+  assert.equal(sqlite.prepare("SELECT count FROM staff_attempts WHERE key='login:user:test_staff'").get().count, 10);
+});
+
+test('Office IP allowance still limits failures spread across different usernames', async () => {
+  for (let i = 0; i < 20; i++) {
+    assert.equal((await handleStaff(request('login', 'POST', {username: 'unknown_' + i, password: 'Incorrect1!'}), env)).status, 401);
+  }
+  assert.equal((await handleStaff(request('login', 'POST', account), env)).status, 429);
+});
+
+test('Registration throttling and old combined counters do not block staff login', async () => {
+  const invalid = {...account, invitation: 'wrong'};
+  for (let i = 0; i < 10; i++) assert.equal((await handleStaff(request('register', 'POST', invalid), env)).status, 403);
+  assert.equal((await handleStaff(request('register', 'POST', invalid), env)).status, 429);
+  sqlite.prepare('INSERT INTO staff_attempts (key,count,expires_at) VALUES (?,?,?)').run('user:test_staff', 99, Math.floor(Date.now() / 1000) + 900);
+  assert.equal((await handleStaff(request('login', 'POST', account), env)).status, 200);
 });
