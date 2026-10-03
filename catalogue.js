@@ -156,18 +156,6 @@ if (hasCategory) {
   document.querySelector('#empty-state p').textContent = 'Try another keyword to search this category.';
   document.getElementById('reset-filters').textContent = 'Clear search';
 }
-try {
-  const key = 'abtech-home-return:' + new URL('.', location.href).pathname;
-  const saved = JSON.parse(sessionStorage.getItem(key));
-  if (saved && Number.isFinite(saved.y) && saved.y >= 0) {
-    const home = new URL(saved.url);
-    const directory = new URL('.', location.href).pathname;
-    if (home.origin === location.origin && [directory, directory + 'index.html'].includes(home.pathname)) {
-      home.searchParams.set('return', 'services');
-      document.querySelector('main .back-link').href = home.href;
-    }
-  }
-} catch { /* Normal home navigation remains available when storage is unavailable. */ }
 if (browsingProducts) {
 document.getElementById('count-label').textContent = 'products to explore';
 filters();
