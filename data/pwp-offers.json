@@ -1,3 +1,14 @@
 {
-  "offers": []
+  "offers": [
+    {
+      "id": "uniarch-memory-card",
+      "name": "Uniarch camera memory card offer",
+      "qualifiers": ["CCTV Systems:cctv-turret"],
+      "addons": [{"key": "PWP Products:microsd-64gb", "price": 20}],
+      "limit": 1,
+      "start": "",
+      "end": "",
+      "enabled": true
+    }
+  ]
 }

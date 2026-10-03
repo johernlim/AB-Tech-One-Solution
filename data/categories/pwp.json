@@ -1,3 +1,20 @@
 {
-  "products": []
+  "products": [
+    {
+      "id": "microsd-64gb",
+      "name": "64GB microSD Card",
+      "category": "PWP Products",
+      "image": "assets/products/microsd-64gb.svg",
+      "gallery": [],
+      "price": 35,
+      "price_mode": "fixed",
+      "description": "64GB microSD",
+      "specifications": ["Storage capacity: 64GB", "Format: microSD"],
+      "installation": "Installation quoted separately.",
+      "availability": "Contact us to confirm availability",
+      "published": true,
+      "example": false,
+      "new_arrival": true
+    }
+  ]
 }

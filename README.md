@@ -6,7 +6,7 @@ Staff can manage products in the dedicated **PWP Products** category, then open 
 
 Any selected qualifying product unlocks the optional add-ons in the customer cart. The per-item limit applies to each add-on separately and scales with the combined quantity of qualifying items. Additional quantities use the normal price. Removing all qualifying products, hiding a product or pausing an offer restores normal pricing. The cheapest eligible offer applies without stacking. Checkout uses the cart's discounted total and remains UI-only pending payment integration; future payment/order creation must independently verify current products and offers on the server.
 
-The PWP category starts empty; no sample discounts are activated. Add real products and publish an offer before customer discounts appear. Run `node --test tests/pwp.test.mjs` and `node tests/pwp-browser.cjs` (with the preview on port 8080) to test PWP.
+The PWP category includes a 64GB microSD Card at RM35, marked New Arrival. Buying the Uniarch UHO-C1-M3F2 camera unlocks the card at RM20, with a limit of one discounted card per camera. The card uses a generic illustration. Staff can edit the product or offer through the admin workspace. Run `node --test tests/pwp.test.mjs` and `node tests/pwp-browser.cjs` (with the preview on port 8080) to test PWP.
 
 Responsive static website for AB Tech One Solution, Taiping, Perak.
 

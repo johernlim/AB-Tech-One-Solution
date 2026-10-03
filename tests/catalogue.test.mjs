@@ -14,9 +14,9 @@ const data = {products: groups.flat()};
 const categories = ['CCTV Systems', 'Alarm Systems', 'Door Access Control', 'Computers & Laptops', 'POS Systems', 'Network Infrastructure', 'WiFi Solutions', 'Server Solutions', 'Software Solutions', 'Digital Signage'];
 
 test('Products cover all categories, have unique IDs, safe images and explicit example flags', async () => {
-  assert.equal(data.products.length, 12);
+  assert.equal(data.products.length, 13);
   assert.equal(new Set(data.products.map(p => p.id)).size, data.products.length);
-  assert.deepEqual(new Set(data.products.map(p => p.category)), new Set(categories));
+  assert.deepEqual(new Set(data.products.map(p => p.category)), new Set([...categories, 'PWP Products']));
   for (const product of data.products) {
     assert.equal(typeof product.example, 'boolean');
     assert.equal(typeof product.new_arrival, 'boolean');
