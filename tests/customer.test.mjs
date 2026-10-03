@@ -6,6 +6,7 @@ import {handleCustomer, validCart} from '../auth-worker/customer.mjs';
 import {handleStaff} from '../auth-worker/staff.mjs';
 import {passwordHash} from '../auth-worker/staff.mjs';
 import {validGmail, validContact, validBirthDate} from '../customer-validation.js';
+import {sealFirebaseToken, openFirebaseToken} from '../auth-worker/firebase.mjs';
 const sqlite = new DatabaseSync(':memory:');
 sqlite.exec(await readFile(new URL('../auth-worker/staff-schema.sql', import.meta.url), 'utf8'));
 const db = {prepare(sql) {let values = []; const query = {bind(...args) {values = args; return query;}, async all() {return {results: sqlite.prepare(sql).all(...values)};}, async first() {return sqlite.prepare(sql).get(...values) || null;}, async run() {const result = sqlite.prepare(sql).run(...values); return {meta: {changes: Number(result.changes)}};}}; return query;}, async batch(queries) {return Promise.all(queries.map(q => q.run()));}};
@@ -123,4 +124,78 @@ test('Email sending failures delete unusable tokens and reset requests are throt
   assert.equal(sqlite.prepare('SELECT count(*) AS count FROM customer_password_resets').get().count, 0);
   for (let i = 0; i < 2; i++) assert.equal((await handleCustomer(request('forgot-password', 'POST', {email: account.email}), emailEnv)).status, 502);
   assert.equal((await handleCustomer(request('forgot-password', 'POST', {email: account.email}), emailEnv)).status, 429);
+});
+
+test('Firebase handles customer passwords and resets while profiles, private carts and stable account IDs stay in D1', async () => {
+  const originalFetch = globalThis.fetch, firebaseUsers = new Map(), refreshTokens = new Map(), sent = [];
+  const firebaseEnv = {...env, FIREBASE_WEB_API_KEY: 'public-test-key', FIREBASE_PROJECT_ID: 'abtech-test'};
+  let sequence = 0;
+  const claimsOf = token => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+  const signedIn = (user, originalAuthTime) => {
+    const now = Math.floor(Date.now()/1000), authTime = originalAuthTime ?? Math.max(now, user.validSince);
+    const claims = {aud: firebaseEnv.FIREBASE_PROJECT_ID, iss: 'https://securetoken.google.com/' + firebaseEnv.FIREBASE_PROJECT_ID, sub: user.localId, auth_time: authTime, exp: now + 3600};
+    const refreshToken = 'refresh-' + crypto.randomUUID(); refreshTokens.set(refreshToken, {uid: user.localId, authTime});
+    return {localId: user.localId, idToken: 'trusted.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.mock', refreshToken, expiresIn: '3600'};
+  };
+  globalThis.fetch = async (url, options) => {
+    const error = code => Response.json({error: {message: code}}, {status: 400});
+    if (String(url).startsWith('https://securetoken.googleapis.com/v1/token')) {
+      const data = new URLSearchParams(options.body), saved = refreshTokens.get(data.get('refresh_token'));
+      const user = [...firebaseUsers.values()].find(u => u.localId === saved?.uid);
+      if (!user || user.validSince > saved.authTime) return error('TOKEN_EXPIRED');
+      const result = signedIn(user, saved.authTime);
+      return Response.json({id_token: result.idToken, refresh_token: result.refreshToken, user_id: result.localId});
+    }
+    assert.ok(String(url).startsWith('https://identitytoolkit.googleapis.com/v1/accounts:'));
+    const method = String(url).split('accounts:')[1].split('?')[0], data = JSON.parse(options.body);
+    if (method === 'signUp') {
+      if (firebaseUsers.has(data.email)) return error('EMAIL_EXISTS');
+      const user = {localId: 'firebase-' + (++sequence), email: data.email, password: data.password, validSince: Math.floor(Date.now()/1000)};
+      firebaseUsers.set(data.email, user); return Response.json(signedIn(user));
+    }
+    if (method === 'signInWithPassword') {
+      const user = firebaseUsers.get(data.email);
+      if (!user || user.password !== data.password) return error('INVALID_LOGIN_CREDENTIALS');
+      return Response.json(signedIn(user));
+    }
+    if (method === 'lookup') {
+      const claims = claimsOf(data.idToken), user = [...firebaseUsers.values()].find(u => u.localId === claims.sub);
+      return user ? Response.json({users: [{localId: user.localId, validSince: String(user.validSince), disabled: Boolean(user.disabled)}]}) : error('USER_NOT_FOUND');
+    }
+    if (method === 'sendOobCode') {assert.equal(data.requestType, 'PASSWORD_RESET'); sent.push(data.email); return Response.json({email: data.email});}
+    throw new Error('Unexpected Firebase request');
+  };
+  try {
+    const data = {...account, email: 'firebase.customer@gmail.com'};
+    const response = await handleCustomer(request('register', 'POST', data), firebaseEnv); assert.equal(response.status, 200);
+    const result = await response.json(), stored = sqlite.prepare('SELECT * FROM customer_users WHERE email_key=?').get('firebasecustomer@gmail.com');
+    assert.equal(stored.firebase_uid, 'firebase-1'); assert.equal(stored.full_name, data.fullName); assert.equal(stored.contact_no, data.contactNo);
+    const actualLocalHash = await passwordHash(data.password, stored.salt, 'customer:' + env.STAFF_PASSWORD_PEPPER); assert.notEqual(stored.password_hash, actualLocalHash);
+    const storedSession = sqlite.prepare('SELECT firebase_token,expires_at FROM customer_sessions WHERE user_id=?').get(stored.id);
+    assert.match(storedSession.firebase_token, /^[a-f0-9]+$/); assert.equal(storedSession.firebase_token.includes('trusted.'), false); assert.ok(storedSession.expires_at <= Date.now()/1000 + 28800);
+    const credentials = JSON.parse(await openFirebaseToken(firebaseEnv, storedSession.firebase_token));
+    const expired = claimsOf(credentials.idToken); expired.exp = Math.floor(Date.now()/1000) - 1;
+    credentials.idToken = 'trusted.' + Buffer.from(JSON.stringify(expired)).toString('base64url') + '.mock';
+    sqlite.prepare('UPDATE customer_sessions SET firebase_token=? WHERE user_id=?').run(await sealFirebaseToken(firebaseEnv, JSON.stringify(credentials)), stored.id);
+    assert.equal((await handleCustomer(request('me', 'GET', undefined, result.token), firebaseEnv)).status, 200);
+    assert.equal(sqlite.prepare('SELECT expires_at FROM customer_sessions WHERE user_id=?').get(stored.id).expires_at, storedSession.expires_at);
+    assert.equal((await handleCustomer(request('cart', 'PUT', {items: [{id: 'camera', category: 'CCTV Systems', quantity: 2}], version: 0}, result.token), firebaseEnv)).status, 200);
+    const known = await (await handleCustomer(request('forgot-password', 'POST', {email: data.email}), firebaseEnv)).json();
+    const unknown = await (await handleCustomer(request('forgot-password', 'POST', {email: 'unknown.person@gmail.com'}), firebaseEnv)).json();
+    assert.deepEqual(known, unknown); assert.deepEqual(sent, ['firebasecustomer@gmail.com']);
+    const firebaseUser = firebaseUsers.get('firebasecustomer@gmail.com'); firebaseUser.password = 'ResetNew1!'; firebaseUser.validSince++;
+    assert.equal((await handleCustomer(request('me', 'GET', undefined, result.token), firebaseEnv)).status, 401);
+    assert.equal((await handleCustomer(request('login', 'POST', data), firebaseEnv)).status, 401);
+    const afterReset = await (await handleCustomer(request('login', 'POST', {...data, password: firebaseUser.password}), firebaseEnv)).json();
+    assert.equal(afterReset.items[0].quantity, 2); assert.equal(sqlite.prepare('SELECT id FROM customer_users WHERE firebase_uid=?').get(firebaseUser.localId).id, stored.id);
+    assert.equal((await handleCustomer(request('login', 'POST', {...data, password: firebaseUser.password}), env)).status, 503);
+    firebaseUser.disabled = true; assert.equal((await handleCustomer(request('me', 'GET', undefined, afterReset.token), firebaseEnv)).status, 401); firebaseUser.disabled = false;
+    const legacy = {...account, email: 'migration.customer@gmail.com'}, legacyResult = await (await handleCustomer(request('register', 'POST', legacy), env)).json();
+    const legacyId = sqlite.prepare('SELECT id FROM customer_users WHERE email_key=?').get('migrationcustomer@gmail.com').id;
+    await handleCustomer(request('cart', 'PUT', {items: [{id: 'camera', category: 'CCTV Systems', quantity: 4}], version: 0}, legacyResult.token), env);
+    const migrated = await (await handleCustomer(request('login', 'POST', legacy), firebaseEnv)).json();
+    assert.equal(migrated.items[0].quantity, 4); assert.equal(sqlite.prepare('SELECT id FROM customer_users WHERE email_key=?').get('migrationcustomer@gmail.com').id, legacyId);
+    assert.equal((await handleCustomer(request('me', 'GET', undefined, legacyResult.token), firebaseEnv)).status, 401);
+    const status = await (await handleCustomer(request('status'), firebaseEnv)).json(); assert.equal(status.firebaseAuthentication, true); assert.equal(status.resetEmailConfigured, true);
+  } finally {globalThis.fetch = originalFetch;}
 });

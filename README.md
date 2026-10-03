@@ -46,3 +46,5 @@ Customer routes are handled by `auth-worker/customer.mjs`. The Worker creates se
 Run `node --test tests/customer.test.mjs` and `node tests/customer-browser.cjs` to verify authentication, private carts and the pending-product flow.
 
 Existing username customers can link Gmail and profile details while retaining their cart. The reset password form needs a verified Cloudflare email sender to deliver email; see [customer email setup](docs/CUSTOMER-EMAIL-SETUP.md). Profile and password-reset schema changes are additive and preserve existing data.
+
+Firebase Authentication can handle customer passwords and reset email delivery while profiles and carts stay in D1. The integration is inactive until `FIREBASE_WEB_API_KEY` and `FIREBASE_PROJECT_ID` are configured; see [Firebase setup](docs/FIREBASE-AUTH-SETUP.md). Existing users migrate on successful login and retain their D1 account ID and cart. Linked accounts never fall back to local passwords. Staff authentication is unaffected.

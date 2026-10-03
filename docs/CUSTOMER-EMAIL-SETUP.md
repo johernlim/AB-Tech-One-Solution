@@ -26,4 +26,4 @@ See [Cloudflare's sending setup](https://developers.cloudflare.com/email-service
 
 The Worker checks the registered Gmail in D1 before sending. Its response is the same for registered and unregistered addresses. Reset requests are rate limited. Links expire after 30 minutes, can be used once, and are stored as hashes in D1. A successful reset invalidates all sessions and other reset links for the account. The reset page removes the token from the browser address bar and uses a no-referrer policy.
 
-Firebase Authentication is an alternative if no sender domain is available. It requires a Firebase project, Email/Password authentication and migration of password authentication to Firebase; Firebase cannot reset passwords stored only in D1. It is not connected by this change.
+Firebase Authentication is an alternative if no sender domain is available. The integration is prepared but inactive until the Firebase project configuration is supplied. See [Firebase setup](FIREBASE-AUTH-SETUP.md). It requires Email/Password authentication and migration of password authentication to Firebase; Firebase cannot reset passwords stored only in D1.

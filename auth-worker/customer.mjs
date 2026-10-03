@@ -1,6 +1,7 @@
 import {passwordHash, normalizeUsername, validUsername, reserveAttempt, releaseAttempts} from './staff.mjs';
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {normalizeGmail, validGmail, gmailKey, gmailError, profileError} from '../customer-validation.js';
+import {firebaseConfigured, firebaseLogin, firebaseEnsure, firebaseResetEmail, firebaseRefresh, firebaseClaims, firebaseSessionUser, sealFirebaseToken, openFirebaseToken} from './firebase.mjs';
 const encoder = new TextEncoder();
 const hex = bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
 const random = () => hex(crypto.getRandomValues(new Uint8Array(32)));
@@ -18,13 +19,19 @@ async function initialize(db) {
   if (initializedDb === db) return;
   if (!initializing) initializing = (async () => {
     await db.batch(schemas.map(sql => db.prepare(sql)));
-    const columns = ['email', 'email_key', 'full_name', 'contact_no', 'date_of_birth', 'gender'];
+    const columns = ['email', 'email_key', 'full_name', 'contact_no', 'date_of_birth', 'gender', 'firebase_uid'];
     const existing = new Set((await db.prepare('PRAGMA table_info(customer_users)').all()).results.map(column => column.name));
     for (const column of columns) if (!existing.has(column)) {
       try {await db.prepare('ALTER TABLE customer_users ADD COLUMN ' + column + ' TEXT').run();}
       catch (error) {const current = await db.prepare('PRAGMA table_info(customer_users)').all(); if (!current.results.some(c => c.name === column)) throw error;}
     }
     await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS customer_email_key ON customer_users(email_key) WHERE email_key IS NOT NULL').run();
+    await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS customer_firebase_uid ON customer_users(firebase_uid) WHERE firebase_uid IS NOT NULL').run();
+    const sessions = await db.prepare('PRAGMA table_info(customer_sessions)').all();
+    if (!sessions.results.some(c => c.name === 'firebase_token')) {
+      try {await db.prepare('ALTER TABLE customer_sessions ADD COLUMN firebase_token TEXT').run();}
+      catch (error) {if (!(await db.prepare('PRAGMA table_info(customer_sessions)').all()).results.some(c => c.name === 'firebase_token')) throw error;}
+    }
     initializedDb = db;
   })().finally(() => initializing = null);
   await initializing;
@@ -49,13 +56,43 @@ const cartOf = user => ({items: JSON.parse(user.cart_json), version: user.cart_v
 async function userFor(request, env) {
   const token = request.headers.get('Authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
   if (!token) return null;
-  return env.STAFF_DB.prepare('SELECT u.* FROM customer_sessions s JOIN customer_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').bind(await digest(token), Math.floor(Date.now() / 1000)).first();
+  const user = await env.STAFF_DB.prepare('SELECT u.*,s.firebase_token FROM customer_sessions s JOIN customer_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').bind(await digest(token), Math.floor(Date.now() / 1000)).first();
+  if (user?.firebase_uid) {
+    if (!firebaseConfigured(env)) return null;
+    let credentials;
+    try {credentials = JSON.parse(await openFirebaseToken(env, user.firebase_token));} catch {return null;}
+    if (!credentials?.idToken || !credentials.refreshToken) return null;
+    if (!firebaseClaims(env, credentials.idToken)) {
+      try {credentials = await firebaseRefresh(env, credentials.refreshToken);}
+      catch (error) {if (['TOKEN_EXPIRED', 'INVALID_REFRESH_TOKEN', 'USER_DISABLED', 'USER_NOT_FOUND'].includes(error.code)) return null; throw error;}
+      if (!firebaseClaims(env, credentials.idToken) || credentials.localId !== user.firebase_uid) return null;
+      await env.STAFF_DB.prepare('UPDATE customer_sessions SET firebase_token=? WHERE token_hash=?').bind(await sealFirebaseToken(env, JSON.stringify(credentials)), await digest(token)).run();
+    }
+    if (!await firebaseSessionUser(env, credentials.idToken, user.firebase_uid)) return null;
+  }
+  return user;
 }
-async function signIn(user, env) {
+async function linkFirebase(user, result, env) {
+  const claims = firebaseClaims(env, result.idToken);
+  if (!claims || claims.sub !== result.localId || user.firebase_uid && user.firebase_uid !== result.localId) throw new Error('Firebase account mismatch');
+  if (!user.firebase_uid) {
+    const update = await env.STAFF_DB.prepare('UPDATE customer_users SET firebase_uid=?,salt=?,password_hash=? WHERE id=? AND firebase_uid IS NULL').bind(result.localId, random(), random(), user.id).run();
+    if (!update.meta.changes) {
+      const current = await env.STAFF_DB.prepare('SELECT firebase_uid FROM customer_users WHERE id=?').bind(user.id).first();
+      if (current?.firebase_uid !== result.localId) throw new Error('Firebase account mismatch');
+    }
+    user.firebase_uid = result.localId;
+    await env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE user_id=? AND firebase_token IS NULL').bind(user.id).run();
+    await env.STAFF_DB.prepare('DELETE FROM customer_password_resets WHERE user_id=?').bind(user.id).run();
+  }
+  if (!result.refreshToken) throw new Error('Firebase refresh token missing');
+  return result;
+}
+async function signIn(user, env, firebaseToken = null) {
   const token = random();
   await env.STAFF_DB.batch([
     env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE expires_at<=?').bind(Math.floor(Date.now() / 1000)),
-    env.STAFF_DB.prepare('INSERT INTO customer_sessions (token_hash,user_id,expires_at) VALUES (?,?,?)').bind(await digest(token), user.id, Math.floor(Date.now() / 1000) + 28800)
+    env.STAFF_DB.prepare('INSERT INTO customer_sessions (token_hash,user_id,expires_at,firebase_token) VALUES (?,?,?,?)').bind(await digest(token), user.id, Math.floor(Date.now() / 1000) + 28800, firebaseToken ? await sealFirebaseToken(env, JSON.stringify(firebaseToken)) : null)
   ]);
   return json({token, username: user.username, email: user.email || null, fullName: user.full_name || null, ...cartOf(user)});
 }
@@ -67,14 +104,21 @@ export async function handleCustomer(request, env) {
   const respond = async () => {
     if (!env.STAFF_DB || !env.STAFF_PASSWORD_PEPPER || env.STAFF_PASSWORD_PEPPER.length < 32) return json({error: 'Customer accounts are temporarily unavailable. Please try again shortly.'}, 503);
     await initialize(env.STAFF_DB);
-    if (path === '/customer/status' && request.method === 'GET') return json({configured: true, customerAccounts: true, gmailAccounts: true, resetEmailConfigured: Boolean(env.RESET_EMAIL?.send && env.RESET_EMAIL_FROM)});
+    if (path === '/customer/status' && request.method === 'GET') return json({configured: true, customerAccounts: true, gmailAccounts: true, firebaseAuthentication: firebaseConfigured(env), resetEmailConfigured: firebaseConfigured(env) || Boolean(env.RESET_EMAIL?.send && env.RESET_EMAIL_FROM)});
     if (path === '/customer/forgot-password' && request.method === 'POST') {
       const data = await body(request), email = normalizeGmail(data.email);
       if (!validGmail(email)) return json({error: gmailError(email) || 'Enter your Gmail address.'}, 400);
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       if (!await reserveAttempt(env, 'customer-reset:ip:' + await digest(ip), 5) || !await reserveAttempt(env, 'customer-reset:email:' + gmailKey(email), 3)) return json({error: 'Too many reset requests. Please try again in 15 minutes.'}, 429);
-      if (!env.RESET_EMAIL?.send || !env.RESET_EMAIL_FROM) return json({error: 'Password reset email is not connected yet. Please contact our team.'}, 503);
       const user = await env.STAFF_DB.prepare('SELECT * FROM customer_users WHERE email_key=?').bind(gmailKey(email)).first();
+      if (firebaseConfigured(env)) {
+        if (user?.firebase_uid) {
+          try {await firebaseResetEmail(env, user.email_key);}
+          catch (error) {if (error.code !== 'EMAIL_NOT_FOUND') return json({error: 'Could not send the reset email. Please try again shortly.'}, 502);}
+        }
+        return json({message: 'If this Gmail is registered and connected, a password reset link will be sent. Existing accounts must log in once to connect. Please check your inbox and spam folder.'});
+      }
+      if (!env.RESET_EMAIL?.send || !env.RESET_EMAIL_FROM) return json({error: 'Password reset email is not connected yet. Please contact our team.'}, 503);
       if (user) {
         const token = random(), now = Math.floor(Date.now() / 1000), tokenHash = await digest(token);
         await env.STAFF_DB.prepare('DELETE FROM customer_password_resets WHERE expires_at<=? OR used_at IS NOT NULL').bind(now).run();
@@ -93,6 +137,8 @@ export async function handleCustomer(request, env) {
       const tokenHash = await digest(data.token);
       const reset = await env.STAFF_DB.prepare('SELECT * FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>?').bind(tokenHash, now).first();
       if (!reset) return json({error: 'This reset link is invalid or expired. Request a new one.'}, 400);
+      const resetUser = await env.STAFF_DB.prepare('SELECT firebase_uid FROM customer_users WHERE id=?').bind(reset.user_id).first();
+      if (resetUser?.firebase_uid) return json({error: 'Use a new Firebase reset email for this account.'}, 400);
       const salt = random(), hash = await passwordHash(data.password, salt, 'customer:' + env.STAFF_PASSWORD_PEPPER);
       const results = await env.STAFF_DB.batch([
         env.STAFF_DB.prepare('UPDATE customer_users SET salt=?,password_hash=? WHERE id=? AND EXISTS (SELECT 1 FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>?)').bind(salt, hash, reset.user_id, tokenHash, now),
@@ -125,11 +171,20 @@ export async function handleCustomer(request, env) {
           const result = await env.STAFF_DB.prepare('INSERT INTO customer_users (id,username,salt,password_hash,created_at,email,email_key,full_name,contact_no,date_of_birth,gender) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING').bind(id, gmailKey(email), salt, hash, Date.now(), email, gmailKey(email), data.fullName.trim(), data.contactNo, data.dateOfBirth, data.gender).run();
           if (!result.meta.changes) return json({error: 'This Gmail already has an account. Please log in or reset your password.'}, 409);
           authenticated = true;
-          return signIn({id, username: gmailKey(email), email, full_name: data.fullName.trim(), cart_json: '[]', cart_version: 0}, env);
+          const user = {id, username: gmailKey(email), email, email_key: gmailKey(email), full_name: data.fullName.trim(), cart_json: '[]', cart_version: 0};
+          const firebaseToken = firebaseConfigured(env) ? await linkFirebase(user, await firebaseEnsure(env, user.email_key, data.password), env) : null;
+          return signIn(user, env, firebaseToken);
         }
         const user = linking ? await env.STAFF_DB.prepare('SELECT * FROM customer_users WHERE username=?').bind(username).first() : await env.STAFF_DB.prepare('SELECT * FROM customer_users WHERE email_key=?').bind(gmailKey(email)).first();
-        const hash = await passwordHash(data.password, user?.salt || '00'.repeat(32), 'customer:' + env.STAFF_PASSWORD_PEPPER);
-        if (!user || !equal(hash, user.password_hash)) return json({error: linking ? 'Existing username or password is incorrect.' : 'Gmail or password is incorrect.'}, 401);
+        let firebaseToken = null;
+        if (user?.firebase_uid) {
+          if (!firebaseConfigured(env)) return json({error: 'Account login is temporarily unavailable. Please try again shortly.'}, 503);
+          try {firebaseToken = await linkFirebase(user, await firebaseLogin(env, user.email_key, data.password), env);}
+          catch (error) {return json({error: ['INVALID_LOGIN_CREDENTIALS', 'INVALID_PASSWORD', 'EMAIL_NOT_FOUND', 'USER_DISABLED'].includes(error.code) ? 'Gmail or password is incorrect.' : 'Could not connect to account login. Please try again.'}, ['INVALID_LOGIN_CREDENTIALS', 'INVALID_PASSWORD', 'EMAIL_NOT_FOUND', 'USER_DISABLED'].includes(error.code) ? 401 : 502);}
+        } else {
+          const hash = await passwordHash(data.password, user?.salt || '00'.repeat(32), 'customer:' + env.STAFF_PASSWORD_PEPPER);
+          if (!user || !equal(hash, user.password_hash)) return json({error: linking ? 'Existing username or password is incorrect.' : 'Gmail or password is incorrect.'}, 401);
+        }
         if (linking) {
           if (user.email_key) return json({error: 'This account already uses Gmail. Please use the Login tab.'}, 409);
           if (await env.STAFF_DB.prepare('SELECT id FROM customer_users WHERE email_key=?').bind(gmailKey(email)).first()) return json({error: 'This Gmail is already linked to an account.'}, 409);
@@ -137,9 +192,10 @@ export async function handleCustomer(request, env) {
             const update = await env.STAFF_DB.prepare('UPDATE customer_users SET email=?,email_key=?,full_name=?,contact_no=?,date_of_birth=?,gender=? WHERE id=? AND email_key IS NULL').bind(email, gmailKey(email), data.fullName.trim(), data.contactNo, data.dateOfBirth, data.gender, user.id).run();
             if (!update.meta.changes) return json({error: 'This account was updated. Please log in with Gmail.'}, 409);
           } catch {return json({error: 'This Gmail is already linked to an account.'}, 409);}
-          user.email = email; user.full_name = data.fullName.trim();
+          user.email = email; user.email_key = gmailKey(email); user.full_name = data.fullName.trim();
         }
-        authenticated = true; return signIn(user, env);
+        if (firebaseConfigured(env) && !firebaseToken) firebaseToken = await linkFirebase(user, await firebaseEnsure(env, user.email_key, data.password), env);
+        authenticated = true; return signIn(user, env, firebaseToken);
       } finally {if (authenticated && !registering) await releaseAttempts(env, [ipAttempt, userAttempt]);}
     }
     const user = await userFor(request, env);

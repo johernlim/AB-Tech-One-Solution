@@ -12,6 +12,8 @@ GITHUB_REPO = "johernlim/AB-Tech-One-Solution"
 # Customer reset emails additionally need a verified Cloudflare sending domain,
 # RESET_EMAIL_FROM and a RESET_EMAIL send_email binding. See
 # ../docs/CUSTOMER-EMAIL-SETUP.md before enabling the binding.
+# Alternatively set FIREBASE_WEB_API_KEY and FIREBASE_PROJECT_ID under [vars]
+# for Firebase customer login/reset emails. See ../docs/FIREBASE-AUTH-SETUP.md.
 
 [[d1_databases]]
 binding = "STAFF_DB"
