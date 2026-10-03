@@ -1,5 +1,6 @@
+import {setupCheckout} from './checkout.js?v=checkout-1';
 import {loadCategories} from './category-store.js';
-import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=shipping-fields-1';
+import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=checkout-1';
 
 const root = new URL('.', import.meta.url);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'});
@@ -14,6 +15,7 @@ cart.innerHTML = `<div class="cart-heading"><div><span class="eyebrow">Your sele
 if (pageCart) {const heading = cart.querySelector('#cart-title'), title = document.createElement('h1'); title.id = heading.id; title.textContent = heading.textContent; heading.replaceWith(title);}
 if (!pageCart) document.body.append(cart);
 else {cart.querySelector('.cart-close').hidden = true; cart.querySelector('.cart-view').hidden = true;}
+const checkoutView = pageCart ? setupCheckout(cart, () => ({items, version, saving, unavailable: items.some(item => !catalogue?.has(keyOf(item))), total: cart.querySelector('#cart-total').textContent, totalLabel: cart.querySelector('#cart-total-label').textContent, note: cart.querySelector('.cart-price-note').textContent})) : null;
 const toast = document.createElement('p');
 toast.className = 'cart-toast'; toast.setAttribute('role', 'status');
 document.body.append(toast);
@@ -30,7 +32,7 @@ async function refreshCart() {if (getCustomer()) receiveCart(await customerReque
 function save(transform) {
   const operation = mutation.then(async () => {
     if (!getCustomer()) {say('Please log in to use your cart.'); return false;}
-    saving = true;
+    saving = true; checkoutView?.update();
     cart.querySelectorAll('.cart-items button, .cart-items input, .cart-clear').forEach(control => control.disabled = true);
     const owner = getCustomer().token;
     try {
@@ -127,6 +129,7 @@ function render() {
   cart.querySelector('.cart-price-note').textContent = [quotes ? 'Quote-only items are excluded from this total.' : '', estimated ? '“From” prices are starting prices.' : '', examples ? 'Example products have illustrative prices. Contact us to confirm actual pricing.' : ''].filter(Boolean).join(' ');
   cart.querySelector('.cart-clear').hidden = !items.length;
   cart.querySelector('.cart-clear').disabled = saving;
+  checkoutView?.update();
 }
 export async function addToCart(product) {
   try {
@@ -145,6 +148,7 @@ export async function addToCart(product) {
   } catch (error) {say(error.message || 'Unable to add this product. Please try again.');}
 }
 async function openCart(button) {
+  if (button) checkoutView?.close();
   trigger = button; if (!pageCart && !cart.open) cart.showModal();
   cart.querySelector('.cart-status').textContent = 'Loading your cart…';
   cart.querySelector('.cart-items').replaceChildren(); cart.querySelector('.cart-summary').hidden = true; cart.querySelector('.cart-clear').hidden = true;
