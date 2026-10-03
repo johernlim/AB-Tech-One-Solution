@@ -1,6 +1,7 @@
+import {shippingInputs, addressKeys, normalizeAddressFields, addressFieldsError} from './shipping-address.js';
 import {birthDateInputs, setupBirthDatePicker} from './birth-date-picker.js';
 import {validPassword, passwordRequirement} from './password-policy.js';
-import {normalizeGmail, gmailError, validContact, contactError, normalizeShippingAddress, shippingAddressError} from './customer-validation.js';
+import {normalizeGmail, gmailError, validContact, contactError} from './customer-validation.js';
 const root = new URL('.', import.meta.url), sessionKey = 'abtech-customer-session:' + root.pathname;
 let customer = null, base, waiters = [], trigger, busy = false;
 export const getCustomer = () => customer;
@@ -9,7 +10,7 @@ const profileInputs = () => `${gmailInput}<label>Full Name<input name="fullName"
 const passwordInput = (newPassword = false) => `<label>Password<input name="password" type="password" autocomplete="${newPassword ? 'new-password' : 'current-password'}" required minlength="${newPassword ? 8 : 6}" maxlength="${newPassword ? 128 : 4096}"></label>`;
 const modal = document.createElement('dialog');
 modal.className = 'customer-dialog'; modal.setAttribute('aria-labelledby', 'customer-title');
-modal.innerHTML = `<div class="cart-heading"><div><span class="eyebrow">Customer account</span><h2 id="customer-title">Welcome to AB Tech</h2></div><button type="button" class="cart-close customer-close" aria-label="Close account window">×</button></div><p id="customer-context">Browse freely. Sign in to save products to your cart.</p><div id="customer-forms"><div class="customer-tabs" role="tablist" aria-label="Customer account options"><button type="button" id="customer-login-tab" role="tab" aria-selected="true" aria-controls="customer-login-form">Login</button><button type="button" id="customer-register-tab" role="tab" aria-selected="false" aria-controls="customer-register-form" tabindex="-1">Create account</button></div><form id="customer-login-form" role="tabpanel" aria-labelledby="customer-login-tab">${gmailInput}${passwordInput()}<button class="button customer-submit">Login</button><div class="customer-form-links"><button type="button" data-account-view="forgot">Reset password</button></div></form><form id="customer-register-form" role="tabpanel" aria-labelledby="customer-register-tab" hidden>${profileInputs()}${passwordInput(true)}<p class="customer-help">${passwordRequirement}</p><label>Confirm password<input name="confirmPassword" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label><button class="button customer-submit">Create account</button></form><form id="customer-forgot-form" hidden><h3>Reset password</h3><p class="customer-help">Enter the Gmail used for your account to receive a password reset link.</p>${gmailInput}<button class="button customer-submit">Send reset email</button><div class="customer-form-links"><button type="button" data-account-view="login">Back to login</button></div></form></div><div id="customer-signed-in" hidden><p id="customer-username"></p><dl class="customer-details"></dl><form id="customer-address-form"><label>Shipping address<textarea name="shippingAddress" autocomplete="shipping street-address" maxlength="1000" rows="4" placeholder="Unit / house number, street, postcode, city and state"></textarea></label><button class="button customer-submit">Save shipping address</button></form><button type="button" class="button secondary" id="customer-logout">Log out</button></div><p id="customer-message" role="status" aria-live="polite"></p>`;
+modal.innerHTML = `<div class="cart-heading"><div><span class="eyebrow">Customer account</span><h2 id="customer-title">Welcome to AB Tech</h2></div><button type="button" class="cart-close customer-close" aria-label="Close account window">×</button></div><p id="customer-context">Browse freely. Sign in to save products to your cart.</p><div id="customer-forms"><div class="customer-tabs" role="tablist" aria-label="Customer account options"><button type="button" id="customer-login-tab" role="tab" aria-selected="true" aria-controls="customer-login-form">Login</button><button type="button" id="customer-register-tab" role="tab" aria-selected="false" aria-controls="customer-register-form" tabindex="-1">Create account</button></div><form id="customer-login-form" role="tabpanel" aria-labelledby="customer-login-tab">${gmailInput}${passwordInput()}<button class="button customer-submit">Login</button><div class="customer-form-links"><button type="button" data-account-view="forgot">Reset password</button></div></form><form id="customer-register-form" role="tabpanel" aria-labelledby="customer-register-tab" hidden>${profileInputs()}${passwordInput(true)}<p class="customer-help">${passwordRequirement}</p><label>Confirm password<input name="confirmPassword" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label><button class="button customer-submit">Create account</button></form><form id="customer-forgot-form" hidden><h3>Reset password</h3><p class="customer-help">Enter the Gmail used for your account to receive a password reset link.</p>${gmailInput}<button class="button customer-submit">Send reset email</button><div class="customer-form-links"><button type="button" data-account-view="login">Back to login</button></div></form></div><div id="customer-signed-in" hidden><p id="customer-username"></p><dl class="customer-details"></dl><form id="customer-address-form">${shippingInputs}<button class="button customer-submit">Save shipping address</button></form><button type="button" class="button secondary" id="customer-logout">Log out</button></div><p id="customer-message" role="status" aria-live="polite"></p>`;
 document.body.append(modal);
 const $ = id => modal.querySelector('#' + id);
 function message(text, error = false) {const element = $('customer-message'); element.textContent = text; element.dataset.error = String(error);}
@@ -30,7 +31,7 @@ async function send(path, options = {}, token = customer?.token) {
   const result = await response.json();
   if (!response.ok) {
     if (response.status === 401 && !['login', 'register', 'link-account'].includes(path)) setCustomer(null);
-    const error = new Error(result.error || 'Please try again.'); error.status = response.status; throw error;
+    const error = new Error(result.error || 'Please try again.'); error.status = response.status; error.field = result.field; throw error;
   }
   return result;
 }
@@ -57,8 +58,8 @@ function renderProfile() {
     const term = document.createElement('dt'), description = document.createElement('dd');
     term.textContent = label; description.textContent = value || 'Not provided'; details.append(term, description);
   }
-  const input = $('customer-address-form').elements.shippingAddress;
-  input.value = customer.shippingAddress || ''; input.setCustomValidity('');
+  const fields = customer.shippingAddressFields || {street: customer.shippingAddress || '', country: 'Malaysia'};
+  for (const key of addressKeys) {const input = $('customer-address-form').elements[key]; input.value = fields[key] || (key === 'country' ? 'Malaysia' : ''); input.setCustomValidity('');}
 }
 function openAccount(productName) {
   trigger = document.activeElement;
@@ -130,19 +131,20 @@ for (const [kind, path] of [['login', 'login'], ['register', 'register'], ['forg
   } catch (error) {message(error.message || 'Could not connect. Please try again.', true);}
   finally {busy = false; modal.querySelectorAll('button').forEach(button => button.disabled = false);}
 });
-$('customer-address-form').elements.shippingAddress.addEventListener('input', event => {event.currentTarget.setCustomValidity(''); message('');});
+for (const key of addressKeys) for (const event of ['input', 'change']) $('customer-address-form').elements[key].addEventListener(event, () => {for (const name of addressKeys) $('customer-address-form').elements[name].setCustomValidity(''); message('');});
 $('customer-address-form').addEventListener('submit', async event => {
   event.preventDefault(); if (busy || !customer) return;
-  const input = event.currentTarget.elements.shippingAddress;
-  const error = shippingAddressError(input.value, customer.shippingAddress);
-  if (error) {input.setCustomValidity(error); message(''); input.reportValidity(); return;}
-  const owner = customer.token, address = normalizeShippingAddress(input.value);
+  const form = event.currentTarget, fields = Object.fromEntries(new FormData(form));
+  const invalid = addressFieldsError(fields, customer.shippingAddressFields);
+  let input = form.elements.street;
+  if (invalid) {input = form.elements[invalid.field]; input.setCustomValidity(invalid.error); message(''); input.reportValidity(); return;}
+  const owner = customer.token, address = normalizeAddressFields(fields);
   busy = true; modal.querySelectorAll('button').forEach(button => button.disabled = true);
   message('Saving your shipping address…');
   try {
-    const result = await send('profile', {method: 'PUT', body: JSON.stringify({shippingAddress: address})});
+    const result = await send('profile', {method: 'PUT', body: JSON.stringify({shippingAddressFields: address})});
     if (customer?.token === owner) {customer = {...customer, ...result}; renderProfile(); message(result.message);}
-  } catch (error) {if (error.status === 400) {message(''); input.setCustomValidity(error.message); input.reportValidity();} else message(error.message || 'Could not save your address. Please try again.', true);}
+  } catch (error) {if (error.status === 400) {message(''); input = form.elements[error.field] || input; input.setCustomValidity(error.message); input.reportValidity();} else message(error.message || 'Could not save your address. Please try again.', true);}
   finally {busy = false; modal.querySelectorAll('button').forEach(button => button.disabled = false);}
 });
 $('customer-logout').addEventListener('click', async () => {

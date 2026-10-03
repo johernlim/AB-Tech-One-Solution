@@ -1,3 +1,4 @@
+import {normalizeAddressFields, formatAddress, parseAddressFields, addressFieldsError} from '../shipping-address.js';
 import {passwordHash, normalizeUsername, validUsername, reserveAttempt, releaseAttempts} from './staff.mjs';
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {normalizeGmail, validGmail, gmailKey, gmailError, profileError, normalizeShippingAddress, shippingAddressError} from '../customer-validation.js';
@@ -19,7 +20,7 @@ async function initialize(db) {
   if (initializedDb === db) return;
   if (!initializing) initializing = (async () => {
     await db.batch(schemas.map(sql => db.prepare(sql)));
-    const columns = ['email', 'email_key', 'full_name', 'contact_no', 'date_of_birth', 'gender', 'firebase_uid', 'shipping_address'];
+    const columns = ['email', 'email_key', 'full_name', 'contact_no', 'date_of_birth', 'gender', 'firebase_uid', 'shipping_address', 'shipping_address_fields'];
     const existing = new Set((await db.prepare('PRAGMA table_info(customer_users)').all()).results.map(column => column.name));
     for (const column of columns) if (!existing.has(column)) {
       try {await db.prepare('ALTER TABLE customer_users ADD COLUMN ' + column + ' TEXT').run();}
@@ -88,7 +89,7 @@ async function linkFirebase(user, result, env) {
   if (!result.refreshToken) throw new Error('Firebase refresh token missing');
   return result;
 }
-const profileOf = user => ({username: user.username, email: user.email || null, fullName: user.full_name || null, contactNo: user.contact_no || null, dateOfBirth: user.date_of_birth || null, gender: user.gender || null, shippingAddress: user.shipping_address || ''});
+const profileOf = user => ({username: user.username, email: user.email || null, fullName: user.full_name || null, contactNo: user.contact_no || null, dateOfBirth: user.date_of_birth || null, gender: user.gender || null, shippingAddress: user.shipping_address || '', shippingAddressFields: parseAddressFields(user.shipping_address_fields)});
 async function signIn(user, env, firebaseToken = null) {
   const token = random();
   await env.STAFF_DB.batch([
@@ -205,11 +206,18 @@ export async function handleCustomer(request, env) {
     if (path === '/customer/me' && request.method === 'GET') return json({...profileOf(user), ...cartOf(user)});
     if (path === '/customer/profile' && request.method === 'PUT') {
       const data = await body(request);
+      if ('shippingAddressFields' in data) {
+        const invalid = addressFieldsError(data.shippingAddressFields, parseAddressFields(user.shipping_address_fields));
+        if (invalid) return json(invalid, 400);
+        const fields = normalizeAddressFields(data.shippingAddressFields), address = formatAddress(fields), stored = JSON.stringify(fields);
+        await env.STAFF_DB.prepare('UPDATE customer_users SET shipping_address=?,shipping_address_fields=? WHERE id=?').bind(address, stored, user.id).run();
+        return json({...profileOf({...user, shipping_address: address, shipping_address_fields: stored}), message: 'Shipping address saved.'});
+      }
       const error = shippingAddressError(data.shippingAddress, user.shipping_address);
       if (error) return json({error}, 400);
       const address = normalizeShippingAddress(data.shippingAddress);
-      await env.STAFF_DB.prepare('UPDATE customer_users SET shipping_address=? WHERE id=?').bind(address, user.id).run();
-      return json({...profileOf({...user, shipping_address: address}), message: 'Shipping address saved.'});
+      await env.STAFF_DB.prepare('UPDATE customer_users SET shipping_address=?,shipping_address_fields=NULL WHERE id=?').bind(address, user.id).run();
+      return json({...profileOf({...user, shipping_address: address, shipping_address_fields: null}), message: 'Shipping address saved.'});
     }
     if (path === '/customer/logout' && request.method === 'POST') {
       await env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE token_hash=?').bind(await digest(request.headers.get('Authorization').slice(7))).run();

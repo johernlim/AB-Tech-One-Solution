@@ -232,3 +232,24 @@ test('Customer profile details and shipping addresses persist privately without 
   assert.equal((await handleCustomer(request('profile', 'PUT', {shippingAddress: changed}, first.token), env)).status, 200);
   assert.equal((await (await handleCustomer(request('me', 'GET', undefined, first.token), env)).json()).shippingAddress, changed);
 });
+
+
+test('Structured Malaysian shipping addresses validate each field and persist per customer', async () => {
+  const first = await register('structured.first@gmail.com'), second = await register('structured.second@gmail.com');
+  const fields = {street: '12 Jalan Test', city: 'Taiping', state: 'Perak', postcode: '34000', country: 'Malaysia'};
+  for (const patch of [{street: ''}, {city: ' '}, {state: 'Invalid'}, {postcode: '1234'}, {postcode: 'ABCDE'}, {country: 'Singapore'}, {street: 'a'.repeat(501)}]) {
+    const response = await handleCustomer(request('profile', 'PUT', {shippingAddressFields: {...fields, ...patch}}, first.token), env);
+    assert.equal(response.status, 400); assert.ok((await response.json()).field);
+  }
+  const save = await handleCustomer(request('profile', 'PUT', {shippingAddressFields: fields}, first.token), env);
+  assert.equal(save.status, 200); assert.deepEqual((await save.json()).shippingAddressFields, fields);
+  const profile = await (await handleCustomer(request('me', 'GET', undefined, first.token), env)).json();
+  assert.deepEqual(profile.shippingAddressFields, fields); assert.equal(profile.shippingAddress, '12 Jalan Test\n34000 Taiping\nPerak\nMalaysia');
+  assert.equal((await (await handleCustomer(request('me', 'GET', undefined, second.token), env)).json()).shippingAddressFields, null);
+  const unchanged = await handleCustomer(request('profile', 'PUT', {shippingAddressFields: {...fields, street: '  12  Jalan Test  '}}, first.token), env);
+  assert.equal(unchanged.status, 400); assert.match((await unchanged.json()).error, /modify at least one word/);
+  for (const state of ['Kuala Lumpur', 'Labuan', 'Putrajaya']) {
+    const response = await handleCustomer(request('profile', 'PUT', {shippingAddressFields: {...fields, state}}, first.token), env);
+    assert.equal(response.status, 200);
+  }
+});

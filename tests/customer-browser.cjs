@@ -18,7 +18,7 @@ const assert = require('node:assert/strict');
       else {const result = users.get(fields.email); const nextToken = (++sequence).toString(16).padStart(64, '0'); tokens.set(nextToken, fields.email); data = {...result, token: nextToken};}
     } else if (!user) {status = 401; data = {error: 'Please log in to use your cart.'};}
     else if (path === 'logout') {tokens.delete(token); data = {message: 'Logged out.'};}
-    else if (path === 'profile' && req.method() === 'PUT') {profileWrites++; user.shippingAddress = req.postDataJSON().shippingAddress.trim(); data = {...user, message: 'Shipping address saved.'};}
+    else if (path === 'profile' && req.method() === 'PUT') {profileWrites++; user.shippingAddressFields = req.postDataJSON().shippingAddressFields; user.shippingAddress = user.shippingAddressFields.street; data = {...user, message: 'Shipping address saved.'};}
     else if (req.method() === 'PUT') {
       writes++;
       if (failSave) {status = 500; data = {error: 'Unable to save your cart. Please try again.'};}
@@ -53,24 +53,41 @@ const assert = require('node:assert/strict');
     await page.locator('[data-customer-account]').click();
     await page.getByText('01112345678', {exact: true}).waitFor();
     assert.equal(await page.locator('.customer-details').getByText('1995-01-01', {exact: true}).count(), 1);
-    await page.locator('[name=shippingAddress]').fill('12 Jalan Test\n34000 Taiping, Perak');
+    assert.equal(await page.locator('[name=country]').inputValue(), 'Malaysia');
+    assert.equal(await page.locator('[name=country]').evaluate(e => e.readOnly), true);
+    assert.equal(await page.locator('[name=state] option').count(), 17);
+    await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
+    assert.match(await page.locator('[name=street]').evaluate(e => e.validationMessage), /enter your street address/);
+    assert.equal(profileWrites, 0);
+    await page.locator('[name=street]').fill('12 Jalan Test');
+    await page.locator('[name=city]').fill('Taiping');
+    await page.locator('[name=state]').selectOption('Perak');
+    await page.locator('[name=postcode]').fill('1234');
+    await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
+    assert.match(await page.locator('[name=postcode]').evaluate(e => e.validationMessage), /5-digit/);
+    assert.equal(profileWrites, 0);
+    await page.locator('[name=postcode]').fill('34000');
     await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
     await page.getByText('Shipping address saved.', {exact: true}).waitFor(); await count(1);
     assert.equal(profileWrites, 1);
     await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
-    assert.match(await page.locator('[name=shippingAddress]').evaluate(e => e.validationMessage), /modify at least one word/);
+    assert.match(await page.locator('[name=street]').evaluate(e => e.validationMessage), /modify at least one word/);
     assert.equal(await page.locator('#customer-message').textContent(), '');
     assert.equal(profileWrites, 1);
-    await page.locator('[name=shippingAddress]').fill('   ');
+    await page.locator('[name=street]').fill('   ');
     await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
-    assert.match(await page.locator('[name=shippingAddress]').evaluate(e => e.validationMessage), /enter your shipping address/);
+    assert.match(await page.locator('[name=street]').evaluate(e => e.validationMessage), /enter your street address/);
     assert.equal(await page.locator('#customer-message').textContent(), '');
     assert.equal(profileWrites, 1);
-    await page.locator('[name=shippingAddress]').fill('15 Jalan Test\n34000 Taiping, Perak');
+    await page.locator('[name=street]').fill('15 Jalan Test');
     await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
     await page.getByText('Shipping address saved.', {exact: true}).waitFor();
     assert.equal(profileWrites, 2);
     await page.screenshot({path: '.preview/customer-account-address.png'});
+    await page.setViewportSize({width: 390, height: 844});
+    assert.equal(await page.locator('.customer-dialog').evaluate(e => e.scrollWidth <= e.clientWidth), true);
+    await page.screenshot({path: '.preview/shipping-fields-mobile.png'});
+    await page.setViewportSize({width: 1440, height: 1000});
     await page.getByRole('button', {name: 'Close account window', exact: true}).click();
     await page.locator('[data-cart-open]').click(); await page.locator('.cart-item').waitFor();
     await page.getByRole('link', {name: 'View cart', exact: true}).click();
@@ -84,7 +101,10 @@ const assert = require('node:assert/strict');
     await page.screenshot({path: '.preview/full-cart-mobile.png'});
     await page.setViewportSize({width: 1440, height: 1000});
     await page.locator('[data-customer-account]').click();
-    assert.equal(await page.locator('[name=shippingAddress]').inputValue(), '15 Jalan Test\n34000 Taiping, Perak');
+    assert.equal(await page.locator('[name=street]').inputValue(), '15 Jalan Test');
+    assert.equal(await page.locator('[name=city]').inputValue(), 'Taiping');
+    assert.equal(await page.locator('[name=state]').inputValue(), 'Perak');
+    assert.equal(await page.locator('[name=postcode]').inputValue(), '34000');
     await page.getByRole('button', {name: 'Close account window', exact: true}).click();
     await page.goto('http://localhost:8080/index.html'); await count(1);
     await logout();

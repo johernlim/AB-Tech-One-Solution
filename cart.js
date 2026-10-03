@@ -1,5 +1,5 @@
 import {loadCategories} from './category-store.js';
-import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=address-validation-2';
+import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=shipping-fields-1';
 
 const root = new URL('.', import.meta.url);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'});
