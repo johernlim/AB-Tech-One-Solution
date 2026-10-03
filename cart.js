@@ -1,6 +1,6 @@
-import {setupCheckout} from './checkout.js?v=checkout-1';
+import {setupCheckout} from './checkout.js?v=checkout-2';
 import {loadCategories} from './category-store.js';
-import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=checkout-1';
+import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=checkout-2';
 
 const root = new URL('.', import.meta.url);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'});

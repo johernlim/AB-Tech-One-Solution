@@ -126,7 +126,7 @@ const assert = require('node:assert/strict');
     await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
     await page.screenshot({path: '.preview/checkout-mobile.png', fullPage: true});
     await page.setViewportSize({width: 1440, height: 1000});
-    await page.getByRole('button', {name: '1. Cart', exact: true}).click();
+    await page.getByRole('button', {name: 'Back to cart', exact: true}).click();
     assert.equal(await checkout.isVisible(), false); await count(1);
     await page.locator('[data-customer-account]').click();
     assert.equal(await page.locator('#customer-address-form [name=street]').inputValue(), '15 Jalan Test');
