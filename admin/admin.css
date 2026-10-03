@@ -49,3 +49,4 @@ body{min-height:100vh}#nc-root a[class*="GridCardLink"][href*="/entries/"]{heigh
 #register-form input{padding:9px 12px}
 #register-form .field-help{margin-top:4px;line-height:1.5}
 #register-form .account-submit{margin-top:14px}
+.category-management{display:flex;flex-direction:column;gap:14px;margin-bottom:18px}.category-management h2{font-size:17px}.category-management .button{font-size:12px;padding:10px 14px}.category-product-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}.category-product-actions .button{font-size:12px;padding:11px 14px}#close-staff-category{background:none;border:0;color:var(--mint);font-size:25px;cursor:pointer}@media(max-width:700px){.category-management{flex-direction:row;align-items:center;justify-content:space-between}.category-product-actions{flex-direction:column;gap:8px}.category-product-actions .button{font-size:10px;padding:9px 10px}}

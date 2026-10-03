@@ -15,6 +15,8 @@ const db = {prepare(sql) {
 const env = {ALLOWED_ORIGIN: origin, GITHUB_REPO: 'johernlim/AB-Tech-One-Solution', STAFF_DB: db, STAFF_INVITE_CODE: 'invitation-code-for-trusted-staff', STAFF_PASSWORD_PEPPER: 'a-test-only-password-pepper-of-32-characters', GITHUB_CATALOGUE_TOKEN: 'private-github-token'};
 const request = (path, method = 'GET', data, token, source = origin) => new Request('https://auth.workers.dev/staff/' + path, {method, headers: {Origin: source, 'Content-Type': 'application/json', 'CF-Connecting-IP': '127.0.0.1', ...(token ? {Authorization: 'Bearer ' + token} : {})}, ...(data ? {body: JSON.stringify(data)} : {})});
 const account = {username: 'Test_Staff', password, confirmPassword: password, invitation: env.STAFF_INVITE_CODE};
+const registry = JSON.parse(await readFile(new URL('../data/categories.json', import.meta.url), 'utf8'));
+const registryResponse = () => Response.json({sha: 'd'.repeat(40), content: Buffer.from(JSON.stringify(registry)).toString('base64')});
 test.beforeEach(() => sqlite.exec('DELETE FROM staff_attempts'));
 
 test('Registration requires eight characters, a number and a special symbol', async () => {
@@ -76,7 +78,7 @@ test('Publishing uses the private GitHub token and rejects stale edits', async (
   const original = globalThis.fetch;
   try {
     let call;
-    globalThis.fetch = async (url, options) => {call = {url, options}; return Response.json({content: {sha: 'b'.repeat(40)}});};
+    globalThis.fetch = async (url, options) => {if (url.includes('/contents/data/categories.json?')) return registryResponse(); call = {url, options}; return Response.json({content: {sha: 'b'.repeat(40)}});};
     const {products} = JSON.parse(await readFile(new URL('../data/categories/cctv.json', import.meta.url), 'utf8'));
     const response = await handleStaff(request('categories/cctv', 'PUT', {sha: 'a'.repeat(40), products}, token), env);
     assert.equal(response.status, 200);
@@ -84,7 +86,7 @@ test('Publishing uses the private GitHub token and rejects stale edits', async (
     assert.equal(call.options.headers.Authorization, 'Bearer private-github-token');
     assert.equal(JSON.parse(call.options.body).sha, 'a'.repeat(40));
     assert.ok(!(await response.text()).includes(env.GITHUB_CATALOGUE_TOKEN));
-    globalThis.fetch = async () => new Response('', {status: 409});
+    globalThis.fetch = async url => url.includes('/contents/data/categories.json?') ? registryResponse() : new Response('', {status: 409});
     assert.equal((await handleStaff(request('categories/cctv', 'PUT', {sha: 'a'.repeat(40), products}, token), env)).status, 409);
     assert.equal((await handleStaff(request('categories/not-a-category', 'PUT', {products}, token), env)).status, 404);
   } finally {globalThis.fetch = original;}
@@ -118,7 +120,7 @@ test('Successful logins preserve failures; blocked login does not block an exist
   assert.equal((await handleStaff(request('login', 'POST', account), env)).status, 429);
   const original = globalThis.fetch;
   try {
-    globalThis.fetch = async () => Response.json({content: {sha: 'c'.repeat(40)}});
+    globalThis.fetch = async url => url.includes('/contents/data/categories.json?') ? registryResponse() : Response.json({content: {sha: 'c'.repeat(40)}});
     const {products} = JSON.parse(await readFile(new URL('../data/categories/cctv.json', import.meta.url), 'utf8'));
     assert.equal((await handleStaff(request('categories/cctv', 'PUT', {sha: 'b'.repeat(40), products}, token), env)).status, 200);
   } finally {globalThis.fetch = original;}

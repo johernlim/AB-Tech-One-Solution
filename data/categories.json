@@ -1,0 +1,74 @@
+{
+  "categories": [
+    {
+      "name": "CCTV Systems",
+      "slug": "cctv",
+      "description": "HD & IP camera installation with remote viewing, night vision and recorded footage from your phone.",
+      "icon": "cctv",
+      "code": "SYS / CCTV"
+    },
+    {
+      "name": "Alarm Systems",
+      "slug": "alarm",
+      "description": "Intrusion alarms with motion sensors and instant alerts to your phone or a monitoring centre.",
+      "icon": "alarm",
+      "code": "SYS / ALM"
+    },
+    {
+      "name": "Door Access Control",
+      "slug": "door-access",
+      "description": "Card, fingerprint and PIN entry that logs every door, every entry, without a key to lose.",
+      "icon": "door-access",
+      "code": "SYS / ACC"
+    },
+    {
+      "name": "Computers & Laptops",
+      "slug": "computers",
+      "description": "Supply, setup and repair for desktops and laptops, sized right for the work your team does.",
+      "icon": "computers",
+      "code": "SYS / PC"
+    },
+    {
+      "name": "POS Systems",
+      "slug": "pos",
+      "description": "Point-of-sale hardware and setup for retail and F&B, built to keep ringing up sales.",
+      "icon": "pos",
+      "code": "SYS / POS"
+    },
+    {
+      "name": "Network Infrastructure",
+      "slug": "network",
+      "description": "Structured cabling, switches and routers laid out properly, so nothing chokes as you grow.",
+      "icon": "network",
+      "code": "SYS / LAN"
+    },
+    {
+      "name": "WiFi Solutions",
+      "slug": "wifi",
+      "description": "Full-coverage wireless with no dead spots — sized for the building, not just one router.",
+      "icon": "wifi",
+      "code": "SYS / WIFI"
+    },
+    {
+      "name": "Server Solutions",
+      "slug": "servers",
+      "description": "On-site and cloud-backed servers for file sharing, backup and business software.",
+      "icon": "servers",
+      "code": "SYS / SRV"
+    },
+    {
+      "name": "Software Solutions",
+      "slug": "software",
+      "description": "Business software setup, licensing and integration — matched to how your team already works.",
+      "icon": "software",
+      "code": "SYS / SFT"
+    },
+    {
+      "name": "Digital Signage",
+      "slug": "signage",
+      "description": "Screens and displays for menus, promotions and wayfinding, updated remotely from anywhere.",
+      "icon": "signage",
+      "code": "SYS / SIGN"
+    }
+  ]
+}

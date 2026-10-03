@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
       let status = 200, data;
       if (request.method() === 'OPTIONS') {await route.fulfill({status: 204, headers: {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS'}}); return;}
       if (path.endsWith('/status')) data = {configured: true, missing: []};
+      else if (path === '/staff/categories') data = {sha: 'c'.repeat(40), categories: (await import('../product-categories.js')).productCategories};
       else if (path.endsWith('/register')) {
         if (registered) {status = 409; data = {error: 'That username is already taken. Choose another username.'};}
         else {registered = true; data = {message: 'Account created. You can now log in.'};}

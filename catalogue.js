@@ -1,11 +1,15 @@
 'use strict';
-import {productCategories} from './product-categories.js';
+import {loadCategories, renderCategoryCards} from './category-store.js';
+import {addToCart} from './cart.js?v=cart-1';
+const productCategories = await loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];});
+renderCategoryCards(document.querySelector('.catalogue-categories'), productCategories);
 const categories = productCategories.map(category => category.name);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
 const params = new URLSearchParams(location.search);
 const hasCategory = categories.includes(params.get('category'));
 const selectedCategory = hasCategory ? params.get('category') : null;
 const browsingProducts = hasCategory || params.get('view') === 'all';
+if (params.has('category') && !hasCategory) document.getElementById('catalogue-page-description').textContent = 'That category is no longer available. Browse our current categories below.';
 let category = hasCategory ? params.get('category') : 'All products';
 let products = [];
 const grid = document.getElementById('products');
@@ -52,6 +56,7 @@ function filters() {
 }
 function showDetails(product, button) {
   activeProductButton = button;
+  document.getElementById('detail-add-cart').onclick = () => addToCart(product);
   document.getElementById('detail-name').textContent = product.name;
   document.getElementById('detail-category').textContent = product.category;
   document.getElementById('detail-price').textContent = price(product);
@@ -101,6 +106,10 @@ function card(product) {
   cost.append(element('small', '', product.example ? 'Illustrative price' : product.availability));
   const details = element('button', '', 'View details ↗'); details.type = 'button';
   bottom.append(cost, details); copy.append(bottom); article.append(photo, copy);
+  const add = element('button', 'button product-add-cart', 'Add to cart'); add.type = 'button';
+  add.setAttribute('aria-label', 'Add ' + product.name + ' to cart');
+  add.addEventListener('click', async () => {add.disabled = true; try {await addToCart(product);} finally {add.disabled = false;}});
+  copy.append(add);
   [photo, name, details].forEach(button => button.addEventListener('click', () => showDetails(product, button)));
   return article;
 }

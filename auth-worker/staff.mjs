@@ -1,4 +1,4 @@
-import {productCategories} from '../product-categories.js';
+import {readCategories, changeCategories} from './categories.mjs';
 import {validPassword, passwordRequirement} from '../password-policy.js';
 export {validPassword} from '../password-policy.js';
 const encoder = new TextEncoder();
@@ -80,7 +80,7 @@ export async function handleStaff(request, env) {
   const url = new URL(request.url);
   const origin = request.headers.get('Origin');
   if (origin !== env.ALLOWED_ORIGIN) return json({error: 'This request must come from the staff website.'}, 403);
-  const cors = {'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN, 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', Vary: 'Origin'};
+  const cors = {'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN, 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', Vary: 'Origin'};
   if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
   const respond = async () => {
     if (url.pathname === '/staff/status' && request.method === 'GET') {
@@ -89,7 +89,7 @@ export async function handleStaff(request, env) {
         const row = await env.STAFF_DB.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('staff_users','staff_sessions','staff_attempts')").first();
         if (row.count !== 3) {status.configured = false; status.loginConfigured = false; status.registrationConfigured = false; status.missing.push('STAFF_DB schema');}
       }
-      return json(status);
+      return json({...status, categoryManagement: true});
     }
     const readiness = staffStatus(env);
     if (!readiness.loginConfigured) return json({error: 'Login is temporarily unavailable. Please contact the owner and try again shortly.'}, 503);
@@ -140,7 +140,11 @@ export async function handleStaff(request, env) {
     }
     if (url.pathname === '/staff/me' && request.method === 'GET') return json({username: user.username});
     if (!env.GITHUB_CATALOGUE_TOKEN) return json({error: 'Publishing is temporarily unavailable. Please contact the owner.'}, 503);
-    const category = productCategories.find(category => url.pathname === '/staff/categories/' + category.slug);
+    if (url.pathname === '/staff/categories' && request.method === 'GET') return json(await readCategories(env));
+    if (url.pathname === '/staff/categories' && request.method === 'POST') return changeCategories(env, user, 'POST', null, await body(request));
+    const categorySlug = url.pathname.match(/^\/staff\/categories\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
+    if (categorySlug && request.method === 'DELETE') return changeCategories(env, user, 'DELETE', categorySlug, await body(request));
+    const category = categorySlug ? (await readCategories(env)).categories.find(category => category.slug === categorySlug) : null;
     if (category && request.method === 'GET') {
       const response = await github(env, 'data/categories/' + category.slug + '.json?ref=main');
       if (!response.ok) return json({error: 'Could not load products from GitHub.'}, 502);

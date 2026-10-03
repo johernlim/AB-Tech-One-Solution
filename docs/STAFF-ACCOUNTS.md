@@ -58,3 +58,7 @@ DELETE FROM staff_attempts WHERE expires_at < unixepoch();
 D1 and Workers are available on free plans within their allowances. High-volume authentication or image upload usage may exceed them; verify the production password hashing and publishing flow on your account before inviting staff.
 
 References: [D1 setup](https://developers.cloudflare.com/d1/get-started/), [Worker runtime secrets](https://developers.cloudflare.com/workers/configuration/secrets/), [GitHub fine-grained personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+## Manage categories
+
+After logging in, choose **Add category +**, enter a name, category ID, description and icon, then choose **Add & publish**. Add products in the new category using **Add product +**. To remove a category, select it and choose **Remove category**. Confirming removes it from the shared public category list while keeping its product file. The homepage and catalogue update automatically after deployment. If another staff member updates the list first, reload the admin page and log in again before retrying.

@@ -1,7 +1,7 @@
-import {productCategories} from '../product-categories.js';
 import {validPassword, passwordRequirement} from '../password-policy.js';
 const $ = id => document.getElementById(id);
-let base, token, username, selected = productCategories[0], products = [], sha, editing = -1, busy = false;
+let productCategories = [], categoriesSha;
+let base, token, username, selected, products = [], sha, editing = -1, busy = false;
 function notice(id, text, error = false) { $(id).textContent = text; $(id).dataset.error = String(error); }
 async function api(path, options = {}) {
   if (!base) {
@@ -61,12 +61,28 @@ async function loadCategory(category) {
 async function workspace() {
   $('admin-home').hidden = true; $('staff-workspace').hidden = false;
   $('signed-in-as').textContent = 'Signed in as ' + username;
+  $('add-staff-product').disabled = true; $('remove-staff-category').disabled = true;
+  try {
+    const data = await api('categories'); productCategories = data.categories; categoriesSha = data.sha;
+    renderCategories();
+    await selectFirstCategory();
+  } catch (error) {notice('staff-workspace-message', error.message, true);}
+}
+function renderCategories() {
   $('staff-categories').replaceChildren(...productCategories.map(category => {
     const button = node('button'); button.type = 'button'; button.dataset.slug = category.slug; button.setAttribute('aria-pressed', 'false');
-    const icon = node('img'); icon.src = new URL('../assets/category-icons/' + category.slug + '.svg', location.href).href; icon.alt = '';
+    const icon = node('img'); icon.src = new URL('../assets/category-icons/' + (category.icon || 'network') + '.svg', location.href).href; icon.alt = '';
     button.append(icon, node('span', category.name)); button.addEventListener('click', () => loadCategory(category)); return button;
   }));
-  await loadCategory(productCategories[0]);
+}
+async function selectFirstCategory() {
+  selected = null; products = []; sha = null;
+  $('remove-staff-category').disabled = !productCategories.length;
+  if (productCategories.length) await loadCategory(productCategories[0]);
+  else {
+    $('staff-category-title').textContent = 'No categories yet'; $('staff-products').replaceChildren();
+    $('add-staff-product').disabled = true; notice('staff-workspace-message', 'Add a category to start adding products.');
+  }
 }
 async function publish(nextProducts) {
   const result = await api('categories/' + selected.slug, {method: 'PUT', body: JSON.stringify({sha, products: nextProducts})});
@@ -90,6 +106,41 @@ async function upload(file) {
   return (await api('upload', {method: 'POST', body: JSON.stringify({type: file.type, content: data})})).path;
 }
 async function initialize() {
+  $('add-staff-category').addEventListener('click', () => {
+    if (busy) return;
+    $('staff-category-form').reset(); notice('staff-category-message', ''); $('staff-category-dialog').showModal();
+  });
+  $('category-name').addEventListener('input', () => {
+    if (!$('category-slug').dataset.edited) $('category-slug').value = $('category-name').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64).replace(/-$/, '');
+  });
+  $('category-slug').addEventListener('input', () => $('category-slug').dataset.edited = 'true');
+  $('staff-category-form').addEventListener('reset', () => delete $('category-slug').dataset.edited);
+  for (const id of ['close-staff-category', 'cancel-staff-category']) $(id).addEventListener('click', () => {if (!busy) $('staff-category-dialog').close();});
+  $('staff-category-dialog').addEventListener('cancel', event => {if (busy) event.preventDefault();});
+  $('staff-category-form').addEventListener('submit', async event => {
+    event.preventDefault(); if (busy) return;
+    const fields = new FormData(event.currentTarget);
+    const category = Object.fromEntries(['name', 'slug', 'description', 'icon'].map(field => [field, String(fields.get(field)).trim()]));
+    busy = true; $('publish-staff-category').disabled = true; notice('staff-category-message', 'Adding category and publishing…');
+    try {
+      const result = await api('categories', {method: 'POST', body: JSON.stringify({sha: categoriesSha, category})});
+      productCategories = result.categories; categoriesSha = result.sha; renderCategories();
+      $('staff-category-dialog').close(); busy = false;
+      await loadCategory(productCategories.find(c => c.slug === category.slug));
+      $('remove-staff-category').disabled = false; notice('staff-workspace-message', result.message);
+    } catch (error) {notice('staff-category-message', error.message, true);}
+    finally {busy = false; $('publish-staff-category').disabled = false;}
+  });
+  $('remove-staff-category').addEventListener('click', async () => {
+    if (busy || !selected || !confirm('Remove ' + selected.name + ' from the homepage and catalogue? Its products will be hidden and their files preserved.')) return;
+    busy = true; $('remove-staff-category').disabled = true; notice('staff-workspace-message', 'Removing category and publishing…');
+    try {
+      const result = await api('categories/' + selected.slug, {method: 'DELETE', body: JSON.stringify({sha: categoriesSha})});
+      productCategories = result.categories; categoriesSha = result.sha; renderCategories(); busy = false;
+      await selectFirstCategory(); notice('staff-workspace-message', result.message);
+    } catch (error) {notice('staff-workspace-message', error.message, true);}
+    finally {busy = false; $('remove-staff-category').disabled = !selected;}
+  });
   $('login-tab').addEventListener('click', () => tab(false)); $('register-tab').addEventListener('click', () => tab(true));
   document.querySelectorAll('.account-tabs button').forEach(button => button.addEventListener('keydown', event => {
     if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {event.preventDefault(); const register = $('register-form').hidden; tab(register); $(register ? 'register-tab' : 'login-tab').focus();}

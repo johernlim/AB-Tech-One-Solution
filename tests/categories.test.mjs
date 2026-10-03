@@ -1,0 +1,62 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {handleStaff} from '../auth-worker/staff.mjs';
+const origin = 'https://ab-tech-one-solution.pages.dev';
+const category = {name: 'Smart Home', slug: 'smart-home', description: 'Connected home devices.', icon: 'network'};
+const existing = {name: 'CCTV Systems', slug: 'cctv', description: 'Cameras.', icon: 'cctv'};
+const env = {ALLOWED_ORIGIN: origin, GITHUB_REPO: 'johernlim/AB-Tech-One-Solution', STAFF_PASSWORD_PEPPER: 'p'.repeat(32), GITHUB_CATALOGUE_TOKEN: 'test-only-token', STAFF_DB: {prepare() {return {bind() {return this;}, async first() {return {id: 'user', username: 'staff'};}};}}};
+const request = (path, method, data, authenticated = true) => new Request('https://auth.test/staff/' + path, {method, headers: {Origin: origin, 'Content-Type': 'application/json', ...(authenticated ? {Authorization: 'Bearer ' + 'a'.repeat(64)} : {})}, ...(data ? {body: JSON.stringify(data)} : {})});
+async function withGit(run, {reserved = false, conflict = false} = {}) {
+  const original = globalThis.fetch, calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    assert.equal(options.headers.Authorization, 'Bearer test-only-token');
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({url, method: options.method || 'GET', body});
+    if (url.includes('/contents/data/categories.json?')) return Response.json({sha: 'b'.repeat(40), content: Buffer.from(JSON.stringify({categories: [existing]})).toString('base64')});
+    if (url.endsWith('/git/ref/heads/main')) return Response.json({object: {sha: 'c'.repeat(40)}});
+    if (url.includes('/contents/data/categories/smart-home.json?')) return new Response('', {status: reserved ? 200 : 404});
+    if (url.endsWith('/git/commits/' + 'c'.repeat(40))) return Response.json({tree: {sha: 'd'.repeat(40)}});
+    if (url.endsWith('/git/blobs')) return Response.json({sha: 'e'.repeat(40)});
+    if (url.endsWith('/git/trees')) return Response.json({sha: 'f'.repeat(40)});
+    if (url.endsWith('/git/commits')) return Response.json({sha: '1'.repeat(40)});
+    if (url.endsWith('/git/refs/heads/main')) return new Response('', {status: conflict ? 422 : 200});
+    throw new Error('Unexpected GitHub request: ' + url);
+  };
+  try {await run(calls);} finally {globalThis.fetch = original;}
+}
+test('Authenticated category add creates the list and empty product file in one non-forced commit', async () => {
+  await withGit(async calls => {
+    const response = await handleStaff(request('categories', 'POST', {sha: 'b'.repeat(40), category}), env);
+    assert.equal(response.status, 201);
+    const result = await response.json(); assert.equal(result.categories.length, 2);
+    const tree = calls.find(c => c.url.endsWith('/git/trees')).body;
+    assert.equal(tree.base_tree, 'd'.repeat(40));
+    assert.deepEqual(tree.tree.map(t => t.path), ['data/categories.json', 'data/categories/smart-home.json']);
+    assert.deepEqual(JSON.parse(tree.tree[1].content), {products: []});
+    const blob = calls.find(c => c.url.endsWith('/git/blobs')).body;
+    assert.equal(JSON.parse(Buffer.from(blob.content, 'base64')).categories[1].name, 'Smart Home');
+    assert.deepEqual(calls.find(c => c.url.endsWith('/git/commits')).body.parents, ['c'.repeat(40)]);
+    assert.equal(calls.at(-1).body.force, false);
+  });
+});
+test('Removing a category updates only the shared list and preserves product files', async () => {
+  await withGit(async calls => {
+    const response = await handleStaff(request('categories/cctv', 'DELETE', {sha: 'b'.repeat(40)}), env);
+    assert.equal(response.status, 200); assert.deepEqual((await response.json()).categories, []);
+    assert.deepEqual(calls.find(c => c.url.endsWith('/git/trees')).body.tree.map(t => t.path), ['data/categories.json']);
+    assert.equal(calls.some(c => c.method === 'DELETE'), false);
+  });
+});
+test('Missing authentication, invalid paths, duplicates and stale lists cannot publish categories', async () => {
+  assert.equal((await handleStaff(request('categories', 'POST', {sha: 'b'.repeat(40), category}, false), env)).status, 401);
+  for (const [data, status] of [[{sha: 'a'.repeat(40), category}, 409], [{sha: 'b'.repeat(40), category: existing}, 409], [{sha: 'b'.repeat(40), category: {...category, slug: '../secrets'}}, 400], [{sha: 'b'.repeat(40), category: {...category, icon: '../../secret'}}, 400]]) {
+    await withGit(async calls => {assert.equal((await handleStaff(request('categories', 'POST', data), env)).status, status); assert.equal(calls.some(c => c.method === 'POST' || c.method === 'PATCH'), false);});
+  }
+});
+test('Retired category IDs and concurrent branch changes are rejected', async () => {
+  await withGit(async () => {assert.equal((await handleStaff(request('categories', 'POST', {sha: 'b'.repeat(40), category}), env)).status, 409);}, {reserved: true});
+  await withGit(async () => {assert.equal((await handleStaff(request('categories', 'POST', {sha: 'b'.repeat(40), category}), env)).status, 409);}, {conflict: true});
+});
+test('Product editing uses the shared list and rejects removed categories', async () => {
+  await withGit(async () => {assert.equal((await handleStaff(request('categories/smart-home', 'PUT', {sha: 'a'.repeat(40), products: []}), env)).status, 404);});
+});

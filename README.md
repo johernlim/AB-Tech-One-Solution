@@ -26,3 +26,15 @@ Open `catalogue.html` to choose one of ten product categories, then browse its p
 Live publishing needs a one-time GitHub OAuth and Cloudflare connection. See [the setup guide](docs/ADMIN-SETUP.md) for architecture, owner setup, staff instructions and free-plan boundaries.
 
 The branded staff login supports invitation-only username/password accounts and a product editor backed by the existing GitHub repository. Connecting accounts requires a D1 database and runtime secrets; see [staff account setup](docs/STAFF-ACCOUNTS.md). The admin page uses staff accounts only.
+
+## Customer cart
+
+Customers can add products from catalogue cards or product details, then use Cart in the homepage or catalogue header to change quantities, remove items and view the total. The cart is saved in this browser on this device. Prices refresh when the cart opens. Quote-only products are excluded from the priced total; starting prices and example prices are marked as estimates. Delivery and installation are confirmed separately. This cart does not process payments or place orders.
+
+Run `node tests/cart-browser.cjs` with the local preview running to verify cart behaviour.
+
+## Category management
+
+The staff workspace has Add category and Remove category controls. Categories are stored in `data/categories.json` and shared by the homepage, catalogue, contact service selector and cart. Adding a category publishes that list together with an empty product file in one GitHub commit. Removing a category hides it from public browsing and keeps its product file for recovery. Removed category IDs cannot be reused accidentally. Changes appear after Cloudflare deployment. The Worker must deploy the updated `auth-worker` code as well as the static site.
+
+Run `node --test tests/categories.test.mjs tests/staff.test.mjs` and `node tests/categories-browser.cjs` to verify category publishing and page updates.
