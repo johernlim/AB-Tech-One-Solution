@@ -161,11 +161,11 @@ export async function handleStaff(request, env) {
       return json({sha: result.content.sha, message: 'Published to GitHub. The website will update after deployment.'});
     }
     if (url.pathname === '/staff/upload' && request.method === 'POST') {
-      const data = await body(request, 700000);
+      const data = await body(request, 1400000);
       const allowed = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'};
       if (!allowed[data.type] || typeof data.content !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(data.content)) return json({error: 'Upload a JPG, PNG or WebP image.'}, 400);
       const binary = atob(data.content);
-      if (binary.length > 500000) return json({error: 'The image must be smaller than 500 KB.'}, 400);
+      if (binary.length >= 1000000) return json({error: 'The image must be smaller than 1 MB.'}, 400);
       const png = binary.startsWith('\x89PNG\r\n\x1a\n'), jpg = binary.startsWith('\xff\xd8\xff'), webp = binary.startsWith('RIFF') && binary.slice(8, 12) === 'WEBP';
       if (!(data.type === 'image/png' && png || data.type === 'image/jpeg' && jpg || data.type === 'image/webp' && webp)) return json({error: 'The file does not match its image type.'}, 400);
       const path = 'assets/uploads/' + crypto.randomUUID() + '.' + allowed[data.type];

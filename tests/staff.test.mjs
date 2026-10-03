@@ -151,3 +151,18 @@ test('Registration throttling and old combined counters do not block staff login
   sqlite.prepare('INSERT INTO staff_attempts (key,count,expires_at) VALUES (?,?,?)').run('user:test_staff', 99, Math.floor(Date.now() / 1000) + 900);
   assert.equal((await handleStaff(request('login', 'POST', account), env)).status, 200);
 });
+
+test('Photo uploads accept images below 1 MB and reject images at or above the limit', async () => {
+  const {token} = await (await handleStaff(request('login', 'POST', account), env)).json();
+  const original = globalThis.fetch;
+  let uploads = 0;
+  try {
+    globalThis.fetch = async () => {uploads++; return Response.json({content: {sha: 'a'.repeat(40)}});};
+    const photo = size => {const buffer = Buffer.alloc(size); Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(buffer); return {type: 'image/png', content: buffer.toString('base64')};};
+    assert.equal((await handleStaff(request('upload', 'POST', photo(999999), token), env)).status, 201);
+    assert.equal(uploads, 1);
+    const rejected = await handleStaff(request('upload', 'POST', photo(1000000), token), env);
+    assert.equal(rejected.status, 400); assert.match((await rejected.json()).error, /1 MB/);
+    assert.equal(uploads, 1);
+  } finally {globalThis.fetch = original;}
+});

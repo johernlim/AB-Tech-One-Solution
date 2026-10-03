@@ -112,7 +112,7 @@ function editProduct(index) {
   notice('staff-product-message', ''); $('staff-product-dialog').showModal();
 }
 async function upload(file) {
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 500000) throw new Error('Choose a JPG, PNG or WebP image smaller than 500 KB.');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size >= 1000000) throw new Error('Choose a JPG, PNG or WebP image smaller than 1 MB.');
   const data = await new Promise((resolve, reject) => {const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file);});
   return (await api('upload', {method: 'POST', body: JSON.stringify({type: file.type, content: data})})).path;
 }
