@@ -69,3 +69,4 @@ body{min-height:100vh}#nc-root a[class*="GridCardLink"][href*="/entries/"]{heigh
 #staff-category-menu .category-management{margin:14px 0}
 #staff-category-menu .category-management .button{width:100%;justify-content:center}
 @media(prefers-reduced-motion:reduce){#staff-category-menu .category-chevron{transition:none}}
+.category-delete{color:#ffc6b5;border-color:#ffc6b560;margin-left:auto}

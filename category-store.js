@@ -1,4 +1,7 @@
 const root = new URL('.', import.meta.url);
+export function currentCategoryName(name, categories) {
+  return categories.find(category => category.name === name || (category.aliases || []).includes(name))?.name || name;
+}
 export async function loadCategories() {
   const response = await fetch(new URL('data/categories.json', root), {cache: 'no-store'});
   if (!response.ok) throw new Error('Unable to load categories. Please refresh and try again.');

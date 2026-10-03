@@ -81,7 +81,7 @@ export async function handleStaff(request, env) {
   const url = new URL(request.url);
   const origin = request.headers.get('Origin');
   if (origin !== env.ALLOWED_ORIGIN) return json({error: 'This request must come from the staff website.'}, 403);
-  const cors = {'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN, 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', Vary: 'Origin'};
+  const cors = {'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN, 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', Vary: 'Origin'};
   if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
   const respond = async () => {
     if (url.pathname === '/staff/status' && request.method === 'GET') {
@@ -146,6 +146,7 @@ export async function handleStaff(request, env) {
     if (url.pathname === '/staff/categories' && request.method === 'GET') return json(await readCategories(env));
     if (url.pathname === '/staff/categories' && request.method === 'POST') return changeCategories(env, user, 'POST', null, await body(request));
     const categorySlug = url.pathname.match(/^\/staff\/categories\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
+    if (categorySlug && request.method === 'PATCH') return changeCategories(env, user, 'PATCH', categorySlug, await body(request));
     if (categorySlug && request.method === 'DELETE') return changeCategories(env, user, 'DELETE', categorySlug, await body(request));
     const category = categorySlug ? (await readCategories(env)).categories.find(category => category.slug === categorySlug) : null;
     if (category && request.method === 'GET') {

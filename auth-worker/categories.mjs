@@ -9,7 +9,8 @@ export function validCategory(category) {
   return category && typeof category.name === 'string' && category.name === category.name.trim() && category.name.length >= 2 && category.name.length <= 80 &&
     typeof category.slug === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(category.slug) && category.slug.length <= 64 &&
     typeof category.description === 'string' && category.description.trim().length > 0 && category.description.length <= 500 &&
-    categoryIcons.includes(category.icon) && (!category.code || typeof category.code === 'string' && category.code.length <= 32);
+    categoryIcons.includes(category.icon) && (!category.code || typeof category.code === 'string' && category.code.length <= 32) &&
+    (category.aliases === undefined || Array.isArray(category.aliases) && category.aliases.length <= 100 && category.aliases.every(name => typeof name === 'string' && name === name.trim() && name.length >= 2 && name.length <= 80));
 }
 export async function readCategories(env, ref = 'main') {
   const response = await api(env, 'contents/data/categories.json?ref=' + encodeURIComponent(ref));
@@ -33,11 +34,36 @@ export async function changeCategories(env, user, method, slug, data) {
     if (!validCategory(data.category)) return json({error: 'Check the category name, description, ID and icon.'}, 400);
     const category = {name: data.category.name, slug: data.category.slug, description: data.category.description, icon: data.category.icon, code: 'SYS / ' + data.category.slug.toUpperCase().slice(0, 24)};
     if (categories.length >= 50) return json({error: 'You can have up to 50 categories.'}, 400);
-    if (categories.some(c => c.slug === category.slug || c.name.toLowerCase() === category.name.toLowerCase())) return json({error: 'This category name or ID already exists.'}, 409);
+    if (categories.some(c => c.slug === category.slug || c.name.toLowerCase() === category.name.toLowerCase() || (c.aliases || []).some(name => name.toLowerCase() === category.name.toLowerCase()))) return json({error: 'This category name or ID already exists.'}, 409);
     const existing = await api(env, 'contents/data/categories/' + category.slug + '.json?ref=' + head);
     if (existing.status !== 404) return json({error: existing.ok ? 'This ID belongs to a saved category. Choose a new category ID.' : 'Could not verify the category ID. Please try again.'}, existing.ok ? 409 : 502);
     categories = [...categories, category];
     additions.push({path: 'data/categories/' + category.slug + '.json', mode: '100644', type: 'blob', content: '{"products":[]}\n'});
+  } else if (method === 'PATCH') {
+    const previous = categories.find(c => c.slug === slug);
+    if (!previous) return json({error: 'Category not found.'}, 404);
+    if (!validCategory(data.category) || data.category.slug !== slug) return json({error: 'Check the category details. The category ID cannot change.'}, 400);
+    if (slug === 'pwp' && data.category.name !== previous.name) return json({error: 'Keep the dedicated PWP Products name. You can edit its description and icon.'}, 400);
+    if (categories.some(c => c.slug !== slug && (c.name.toLowerCase() === data.category.name.toLowerCase() || (c.aliases || []).some(name => name.toLowerCase() === data.category.name.toLowerCase())))) return json({error: 'This category name is already in use.'}, 409);
+    const renamed = previous.name !== data.category.name;
+    const category = {...previous, name: data.category.name, description: data.category.description, icon: data.category.icon};
+    if (renamed) {
+      category.aliases = [...new Set([...(previous.aliases || []), previous.name])].filter(name => name !== category.name);
+      if (category.aliases.length > 100) return json({error: 'This category has reached its rename history limit.'}, 400);
+      const productResponse = await api(env, 'contents/data/categories/' + slug + '.json?ref=' + head);
+      if (!productResponse.ok) return json({error: 'Could not load this category’s products.'}, 502);
+      const productData = JSON.parse(decode((await productResponse.json()).content));
+      additions.push({path: 'data/categories/' + slug + '.json', mode: '100644', type: 'blob', content: JSON.stringify({...productData, products: productData.products.map(p => ({...p, category: category.name}))}, null, 2) + '\n'});
+      const offerResponse = await api(env, 'contents/data/pwp-offers.json?ref=' + head);
+      if (!offerResponse.ok && offerResponse.status !== 404) return json({error: 'Could not update PWP category references.'}, 502);
+      if (offerResponse.ok) {
+        const offerData = JSON.parse(decode((await offerResponse.json()).content));
+        const replaceKey = key => key.startsWith(previous.name + ':') ? category.name + key.slice(previous.name.length) : key;
+        const offers = offerData.offers.map(o => ({...o, qualifiers: o.qualifiers.map(replaceKey), addons: o.addons.map(a => ({...a, key: replaceKey(a.key)}))}));
+        if (JSON.stringify(offers) !== JSON.stringify(offerData.offers)) additions.push({path: 'data/pwp-offers.json', mode: '100644', type: 'blob', content: JSON.stringify({...offerData, offers}, null, 2) + '\n'});
+      }
+    }
+    categories = categories.map(c => c.slug === slug ? category : c);
   } else {
     if (slug === 'pwp') return json({error: 'PWP Products is the dedicated add-on category. Manage its products instead of removing it.'}, 400);
     if (!categories.some(c => c.slug === slug)) return json({error: 'Category not found.'}, 404);
@@ -52,7 +78,7 @@ export async function changeCategories(env, user, method, slug, data) {
   const treeResponse = await api(env, 'git/trees', {method: 'POST', body: JSON.stringify({base_tree: baseTree, tree: [{path: 'data/categories.json', mode: '100644', type: 'blob', sha: registrySha}, ...additions]})});
   if (!treeResponse.ok) return json({error: 'Could not prepare category files.'}, 502);
   const treeSha = (await treeResponse.json()).sha;
-  const newCommitResponse = await api(env, 'git/commits', {method: 'POST', body: JSON.stringify({message: (method === 'POST' ? 'Add ' + data.category.name : 'Remove ' + slug) + ' category by ' + user.username, tree: treeSha, parents: [head]})});
+  const newCommitResponse = await api(env, 'git/commits', {method: 'POST', body: JSON.stringify({message: (method === 'POST' ? 'Add ' + data.category.name : method === 'PATCH' ? 'Edit ' + data.category.name : 'Remove ' + slug) + ' category by ' + user.username, tree: treeSha, parents: [head]})});
   if (!newCommitResponse.ok) return json({error: 'Could not create the category update.'}, 502);
   const newCommit = (await newCommitResponse.json()).sha;
   const update = await api(env, 'git/refs/heads/main', {method: 'PATCH', body: JSON.stringify({sha: newCommit, force: false})});

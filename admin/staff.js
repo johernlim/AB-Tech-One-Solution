@@ -2,6 +2,7 @@ import {validPassword, passwordRequirement} from '../password-policy.js';
 import {setupPwpAdmin} from './pwp-admin.js?v=pwp-no-dates-1';
 const $ = id => document.getElementById(id);
 let productCategories = [], categoriesSha;
+let categoryEditing = null;
 let base, token, username, selected, products = [], sha, editing = -1, busy = false;
 const uploadedPhotoPreviews = new Map();
 const pwpAdmin = setupPwpAdmin(api, () => busy, value => busy = value);
@@ -67,13 +68,13 @@ async function loadCategory(category) {
     $('staff-categories').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.slug === category.slug)));
     notice('staff-workspace-message', ''); render();
   } catch (error) { notice('staff-workspace-message', error.message, true); }
-  finally {busy = false; $('add-staff-product').disabled = !sha; $('remove-staff-category').disabled = !selected || selected.slug === 'pwp';}
+  finally {busy = false; $('add-staff-product').disabled = !sha; $('edit-staff-category').disabled = !selected;}
 }
 async function workspace() {
   $('staff-category-menu').open = false;
   $('admin-home').hidden = true; $('staff-workspace').hidden = false;
   $('signed-in-as').textContent = 'Signed in as ' + username;
-  $('add-staff-product').disabled = true; $('remove-staff-category').disabled = true;
+  $('add-staff-product').disabled = true; $('edit-staff-category').disabled = true;
   try {
     const data = await api('categories'); productCategories = data.categories; categoriesSha = data.sha;
     renderCategories();
@@ -89,7 +90,7 @@ function renderCategories() {
 }
 async function selectFirstCategory() {
   selected = null; products = []; sha = null;
-  $('remove-staff-category').disabled = !productCategories.length;
+  $('edit-staff-category').disabled = !productCategories.length;
   if (productCategories.length) await loadCategory(productCategories[0]);
   else {
     $('staff-category-title').textContent = 'No categories yet'; $('staff-products').replaceChildren();
@@ -121,12 +122,23 @@ async function upload(file) {
   return (await api('upload', {method: 'POST', body: JSON.stringify({type: file.type, content: data})})).path;
 }
 async function initialize() {
-  $('add-staff-category').addEventListener('click', () => {
+  function openCategory(category = null) {
     if (busy) return;
-    $('staff-category-form').reset(); notice('staff-category-message', ''); $('staff-category-dialog').showModal();
+    categoryEditing = category; const form = $('staff-category-form'); form.reset();
+    $('staff-category-dialog-title').textContent = category ? 'Edit category' : 'Add category';
+    $('publish-staff-category').textContent = category ? 'Save & publish' : 'Add & publish';
+    $('category-slug').readOnly = Boolean(category); $('category-name').readOnly = category?.slug === 'pwp';
+    $('remove-staff-category').hidden = !category; $('remove-staff-category').disabled = category?.slug === 'pwp';
+    if (category) for (const key of ['name','slug','description','icon']) form.elements[key].value = category[key];
+    notice('staff-category-message', category?.slug === 'pwp' ? 'PWP Products is the dedicated add-on category. You can edit its description and icon.' : '');
+    $('staff-category-dialog').showModal();
+  }
+  $('edit-staff-category').addEventListener('click', () => {if (selected) openCategory(selected);});
+  $('add-staff-category').addEventListener('click', () => {
+    openCategory();
   });
   $('category-name').addEventListener('input', () => {
-    if (!$('category-slug').dataset.edited) $('category-slug').value = $('category-name').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64).replace(/-$/, '');
+    if (!categoryEditing && !$('category-slug').dataset.edited) $('category-slug').value = $('category-name').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64).replace(/-$/, '');
   });
   $('category-slug').addEventListener('input', () => $('category-slug').dataset.edited = 'true');
   $('staff-category-form').addEventListener('reset', () => delete $('category-slug').dataset.edited);
@@ -136,25 +148,26 @@ async function initialize() {
     event.preventDefault(); if (busy) return;
     const fields = new FormData(event.currentTarget);
     const category = Object.fromEntries(['name', 'slug', 'description', 'icon'].map(field => [field, String(fields.get(field)).trim()]));
-    busy = true; $('publish-staff-category').disabled = true; notice('staff-category-message', 'Adding category and publishing…');
+    busy = true; $('publish-staff-category').disabled = true; notice('staff-category-message', categoryEditing ? 'Updating category and publishing…' : 'Adding category and publishing…');
     try {
-      const result = await api('categories', {method: 'POST', body: JSON.stringify({sha: categoriesSha, category})});
+      const result = await api(categoryEditing ? 'categories/' + categoryEditing.slug : 'categories', {method: categoryEditing ? 'PATCH' : 'POST', body: JSON.stringify({sha: categoriesSha, category})});
       productCategories = result.categories; categoriesSha = result.sha; renderCategories();
       $('staff-category-dialog').close(); busy = false;
       await loadCategory(productCategories.find(c => c.slug === category.slug));
-      $('remove-staff-category').disabled = false; notice('staff-workspace-message', result.message);
+      $('edit-staff-category').disabled = false; notice('staff-workspace-message', result.message);
     } catch (error) {notice('staff-category-message', error.message, true);}
     finally {busy = false; $('publish-staff-category').disabled = false;}
   });
   $('remove-staff-category').addEventListener('click', async () => {
-    if (busy || !selected || !confirm('Remove ' + selected.name + ' from the homepage and catalogue? Its products will be hidden and their files preserved.')) return;
-    busy = true; $('remove-staff-category').disabled = true; notice('staff-workspace-message', 'Removing category and publishing…');
+    if (busy || !categoryEditing || categoryEditing.slug === 'pwp' || !confirm('Remove ' + categoryEditing.name + ' from the homepage and catalogue? Its products will be hidden and their files preserved.')) return;
+    busy = true; $('remove-staff-category').disabled = true; $('publish-staff-category').disabled = true; notice('staff-category-message', 'Removing category and publishing…');
     try {
-      const result = await api('categories/' + selected.slug, {method: 'DELETE', body: JSON.stringify({sha: categoriesSha})});
+      const result = await api('categories/' + categoryEditing.slug, {method: 'DELETE', body: JSON.stringify({sha: categoriesSha})});
       productCategories = result.categories; categoriesSha = result.sha; renderCategories(); busy = false;
+      $('staff-category-dialog').close();
       await selectFirstCategory(); notice('staff-workspace-message', result.message);
-    } catch (error) {notice('staff-workspace-message', error.message, true);}
-    finally {busy = false; $('remove-staff-category').disabled = !selected;}
+    } catch (error) {notice('staff-category-message', error.message, true);}
+    finally {busy = false; $('remove-staff-category').disabled = categoryEditing?.slug === 'pwp'; $('publish-staff-category').disabled = false;}
   });
   $('login-tab').addEventListener('click', () => tab(false)); $('register-tab').addEventListener('click', () => tab(true));
   document.querySelectorAll('.account-tabs button').forEach(button => button.addEventListener('keydown', event => {

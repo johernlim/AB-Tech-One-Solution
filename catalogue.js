@@ -1,6 +1,6 @@
 'use strict';
-import {loadCategories, renderCategoryCards} from './category-store.js';
-import {addToCart} from './cart.js?v=pwp-no-dates-1';
+import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js';
+import {addToCart} from './cart.js?v=edit-category-1';
 import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-no-dates-1';
 const pwpOffers = await loadPwpOffers().catch(() => []);
 const hasPwp = product => pwpOffers.some(offer => activeOffer(offer) && offer.qualifiers.includes(productKey(product)));
@@ -9,6 +9,7 @@ renderCategoryCards(document.querySelector('.catalogue-categories'), productCate
 const categories = productCategories.map(category => category.name);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
 const params = new URLSearchParams(location.search);
+if (params.has('category')) params.set('category', currentCategoryName(params.get('category'), productCategories));
 const hasCategory = categories.includes(params.get('category'));
 const selectedCategory = hasCategory ? params.get('category') : null;
 const browsingProducts = hasCategory || params.get('view') === 'all';
@@ -104,8 +105,12 @@ function card(product) {
   img.width = 640; img.height = 440; img.loading = 'lazy';
   photo.append(img);
   if (product.new_arrival ?? product.example) photo.append(element('span', 'sample-badge', 'NEW ARRIVAL'));
+  if (hasPwp(product) || product.category === PWP_CATEGORY) {
+    const badge = element('span', 'product-pwp-badge', 'PWP');
+    badge.setAttribute('aria-label', product.category === PWP_CATEGORY ? 'Purchase with Purchase add-on' : 'Purchase with Purchase offer available');
+    photo.append(badge);
+  }
   const copy = element('div', 'product-card-copy');
-  if (hasPwp(product)) copy.append(element('span', 'pwp-badge', 'PWP offer available'));
   copy.append(element('span', 'product-category', product.category));
   const heading = element('h3'); const name = element('button', 'product-title-button', product.name); name.type = 'button'; heading.append(name);
   const bottom = element('div', 'product-card-bottom');

@@ -1,5 +1,5 @@
 import {setupCheckout} from './checkout.js?v=checkout-2';
-import {loadCategories} from './category-store.js';
+import {loadCategories, currentCategoryName} from './category-store.js';
 import {loadPwpOffers, pwpChoices, pwpLine, PWP_CATEGORY, productKey} from './pwp.js?v=pwp-no-dates-1';
 import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=checkout-2';
 
@@ -8,6 +8,16 @@ const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'
 const keyOf = product => product.category + ':' + product.id;
 let items = [], version = 0, catalogue, pending, trigger, saving = false, mutation = Promise.resolve();
 let offers = [];
+let currentCategories = [];
+function normalizedItems(source) {
+  const merged = new Map();
+  for (const item of source) {
+    const next = {...item, category: currentCategoryName(item.category, currentCategories)}, key = keyOf(next);
+    const previous = merged.get(key);
+    if (previous) previous.quantity = Math.min(999, previous.quantity + next.quantity); else merged.set(key, next);
+  }
+  return [...merged.values()];
+}
 const pageCart = document.querySelector('[data-cart-page]');
 const cart = pageCart || document.createElement('dialog');
 const visible = () => Boolean(pageCart || cart.open);
@@ -32,7 +42,7 @@ function say(text) {
   toast.textContent = text; toast.classList.add('visible');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('visible'), 3500);
 }
-function receiveCart(data) {items = data?.items || []; version = data?.version || 0; updateCount(); if (visible() && catalogue) render();}
+function receiveCart(data) {items = normalizedItems(data?.items || []); version = data?.version || 0; updateCount(); if (visible() && catalogue) render();}
 window.addEventListener('customer-change', event => receiveCart(event.detail));
 const ready = customerReady.then(receiveCart);
 async function refreshCart() {if (getCustomer()) receiveCart(await customerRequest('cart')); else receiveCart(null);}
@@ -71,6 +81,7 @@ async function loadCatalogue() {
   if (catalogue) return catalogue;
   if (!pending) pending = Promise.all([loadCategories(), loadPwpOffers()]).then(([productCategories, currentOffers]) => {
     offers = currentOffers;
+    currentCategories = productCategories; items = normalizedItems(items); updateCount();
     return Promise.all(productCategories.map(async ({name, slug}) => {
     const response = await fetch(new URL('data/categories/' + slug + '.json', root), {cache: 'no-store'});
     if (!response.ok) throw new Error('Unable to load cart prices. Please try again.');
