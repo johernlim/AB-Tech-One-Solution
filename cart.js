@@ -1,10 +1,10 @@
 import {loadCategories} from './category-store.js';
+import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=customer-1';
 
 const root = new URL('.', import.meta.url);
-const storageKey = 'abtech-cart-v1:' + root.pathname;
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'});
 const keyOf = product => product.category + ':' + product.id;
-let items = readCart(), catalogue, pending, trigger;
+let items = [], version = 0, catalogue, pending, trigger, saving = false, mutation = Promise.resolve();
 const cart = document.createElement('dialog');
 cart.className = 'cart-dialog';
 cart.setAttribute('aria-labelledby', 'cart-title');
@@ -15,27 +15,31 @@ toast.className = 'cart-toast'; toast.setAttribute('role', 'status');
 document.body.append(toast);
 let toastTimer;
 
-function readCart() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey));
-    if (!Array.isArray(saved)) return [];
-    const unique = new Map();
-    saved.slice(0, 200).forEach(item => {
-      if (typeof item?.id === 'string' && item.id.length <= 80 && typeof item.category === 'string' && item.category.length <= 80 && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 999) {
-        unique.set(keyOf(item), {id: item.id, category: item.category, quantity: item.quantity});
-      }
-    });
-    return [...unique.values()];
-  } catch { return []; }
-}
 function say(text) {
   toast.textContent = text; toast.classList.add('visible');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('visible'), 3500);
 }
-function save() {
-  try {localStorage.setItem(storageKey, JSON.stringify(items));}
-  catch {say('Your cart works in this tab, but this browser could not save it.');}
-  updateCount();
+function receiveCart(data) {items = data?.items || []; version = data?.version || 0; updateCount(); if (cart.open && catalogue) render();}
+window.addEventListener('customer-change', event => receiveCart(event.detail));
+const ready = customerReady.then(receiveCart);
+async function refreshCart() {if (getCustomer()) receiveCart(await customerRequest('cart')); else receiveCart(null);}
+function save(transform) {
+  const operation = mutation.then(async () => {
+    if (!getCustomer()) {say('Please log in to use your cart.'); return false;}
+    saving = true;
+    cart.querySelectorAll('.cart-items button, .cart-items input, .cart-clear').forEach(control => control.disabled = true);
+    const owner = getCustomer().token;
+    try {
+      const next = transform(items);
+      const result = await customerRequest('cart', {method: 'PUT', body: JSON.stringify({version, items: next})});
+      if (owner === getCustomer()?.token) receiveCart(result);
+      return true;
+    } catch (error) {
+      if (error.status === 409) {try {await refreshCart();} catch {}}
+      say(error.message || 'Unable to save your cart. Please try again.'); return false;
+    } finally {saving = false; if (cart.open && catalogue) render();}
+  });
+  mutation = operation.catch(() => {}); return operation;
 }
 function updateCount() {
   const count = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -65,7 +69,7 @@ function render() {
   let total = 0, estimated = false, quotes = false, examples = false;
   if (!items.length) {
     const empty = node('div', 'cart-empty');
-    empty.append(node('h3', '', 'Your cart is empty'), node('p', '', 'Browse the catalogue and add products you like.'));
+    empty.append(node('h3', '', 'Your cart is empty'), node('p', '', getCustomer() ? 'Browse the catalogue and add products you like.' : 'Browse products freely. Login or create an account when you add an item.'));
     const browse = node('a', 'button', 'Browse products'); browse.href = new URL('catalogue.html?view=all', root).href;
     empty.append(browse); container.append(empty);
   }
@@ -96,10 +100,11 @@ function render() {
     input.type = 'number'; input.min = 1; input.max = 999; input.step = 1; input.value = item.quantity;
     input.setAttribute('aria-label', 'Quantity of ' + (product?.name || item.id));
     minus.disabled = !available || item.quantity === 1; plus.disabled = !available || item.quantity === 999; input.disabled = !available;
-    const change = quantity => {
+    const change = async quantity => {
+      if (saving) return;
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) {input.value = item.quantity; say('Choose a quantity from 1 to 999.'); return;}
-      item.quantity = quantity; save(); render();
-      const replacement = [...cart.querySelectorAll('.cart-item')][items.indexOf(item)];
+      await save(current => current.map(i => keyOf(i) === keyOf(item) ? {...i, quantity} : i));
+      const replacement = [...cart.querySelectorAll('.cart-item')][items.findIndex(i => keyOf(i) === keyOf(item))];
       replacement?.querySelector('input').focus();
     };
     minus.addEventListener('click', () => change(item.quantity - 1));
@@ -110,36 +115,39 @@ function render() {
     end.append(node('strong', '', !available ? 'Unavailable' : !priced ? 'Quote needed' : (product.price_mode === 'from' ? 'From ' : '') + money.format(cents * item.quantity / 100)));
     const remove = node('button', 'cart-remove', 'Remove'); remove.type = 'button';
     remove.setAttribute('aria-label', 'Remove ' + (product?.name || item.id));
-    remove.addEventListener('click', () => {items = items.filter(i => i !== item); save(); render(); cart.querySelector('.cart-close').focus();});
+    remove.addEventListener('click', async () => {if (saving) return; await save(current => current.filter(i => keyOf(i) !== keyOf(item))); cart.querySelector('.cart-close').focus();});
     end.append(remove); row.append(copy, end); container.append(row);
   });
   cart.querySelector('#cart-total-label').textContent = estimated || quotes || examples ? 'Estimated total' : 'Total';
   cart.querySelector('#cart-total').textContent = money.format(total / 100);
   cart.querySelector('.cart-price-note').textContent = [quotes ? 'Quote-only items are excluded from this total.' : '', estimated ? '“From” prices are starting prices.' : '', examples ? 'Example products have illustrative prices. Contact us to confirm actual pricing.' : ''].filter(Boolean).join(' ');
   cart.querySelector('.cart-clear').hidden = !items.length;
+  cart.querySelector('.cart-clear').disabled = saving;
 }
 export async function addToCart(product) {
   try {
+    await ready;
+    if (!await requireCustomer(product.name)) return;
     await loadCatalogue();
     if (!catalogue.has(keyOf(product))) throw new Error('This product is no longer available.');
-    const existing = items.find(item => keyOf(item) === keyOf(product));
-    if (existing?.quantity === 999) {say('Maximum quantity is 999.'); return;}
-    if (existing) existing.quantity++;
-    else if (items.length < 200) items.push({id: product.id, category: product.category, quantity: 1});
-    else {say('Your cart is full. Remove an item first.'); return;}
-    save(); say(product.name + ' added to cart.');
-    if (cart.open) render();
+    const saved = await save(current => {
+      const existing = current.find(item => keyOf(item) === keyOf(product));
+      if (existing?.quantity === 999) throw new Error('Maximum quantity is 999.');
+      if (existing) return current.map(item => keyOf(item) === keyOf(product) ? {...item, quantity: item.quantity + 1} : item);
+      if (current.length >= 200) throw new Error('Your cart is full. Remove an item first.');
+      return [...current, {id: product.id, category: product.category, quantity: 1}];
+    });
+    if (saved) say(product.name + ' added to cart.');
   } catch (error) {say(error.message || 'Unable to add this product. Please try again.');}
 }
 document.querySelectorAll('[data-cart-open]').forEach(button => button.addEventListener('click', async () => {
   trigger = button; cart.showModal();
   cart.querySelector('.cart-status').textContent = 'Loading your cart…';
   cart.querySelector('.cart-items').replaceChildren(); cart.querySelector('.cart-summary').hidden = true; cart.querySelector('.cart-clear').hidden = true;
-  try {catalogue = null; await loadCatalogue(); cart.querySelector('.cart-status').textContent = ''; render(); cart.querySelector('.cart-summary').hidden = false;}
+  try {await ready; await mutation; await refreshCart(); catalogue = null; await loadCatalogue(); cart.querySelector('.cart-status').textContent = ''; render(); cart.querySelector('.cart-summary').hidden = false;}
   catch {cart.querySelector('.cart-status').textContent = 'Unable to load your cart. Close it and try again. Your saved items are kept.';}
 }));
 cart.querySelectorAll('.cart-close, .cart-continue').forEach(button => button.addEventListener('click', () => cart.close()));
-cart.querySelector('.cart-clear').addEventListener('click', () => {items = []; save(); render(); cart.querySelector('.cart-close').focus();});
+cart.querySelector('.cart-clear').addEventListener('click', async () => {if (saving) return; await save(() => []); cart.querySelector('.cart-close').focus();});
 cart.addEventListener('close', () => trigger?.focus());
-window.addEventListener('storage', event => {if (event.key === storageKey || event.key === null) {items = readCart(); updateCount(); if (cart.open && catalogue) render();}});
 updateCount();

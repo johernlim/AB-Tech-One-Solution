@@ -6,6 +6,14 @@ const assert = require('node:assert/strict');
   const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   let repriced = false, unpublished = false;
+  let savedItems = [], savedVersion = 0;
+  await page.addInitScript(() => sessionStorage.setItem('abtech-customer-session:/', JSON.stringify({token: 'a'.repeat(64), username: 'cart_test'})));
+  await page.route('https://ab-tech-catalogue-auth.johern20154.workers.dev/customer/**', async route => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') return route.fulfill({status: 204, headers: {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS'}});
+    if (request.method() === 'PUT') {savedItems = request.postDataJSON().items; savedVersion++;}
+    return route.fulfill({json: {username: 'cart_test', items: savedItems, version: savedVersion}, headers: {'Access-Control-Allow-Origin': '*'}});
+  });
   const product = (id, name, price, price_mode) => ({id, name, price, price_mode, published: true, image: 'assets/products/cctv.svg', description: 'Cart test product', specifications: [], gallery: [], installation: 'Installation quoted separately.', availability: 'Confirm availability'});
   await page.route('**/data/categories/*.json', route => {
     const slug = new URL(route.request().url()).pathname.split('/').pop();
@@ -13,7 +21,7 @@ const assert = require('node:assert/strict');
     return route.fulfill({json: {products}});
   });
   const open = () => page.locator('[data-cart-open]').click();
-  const total = () => page.locator('#cart-total').textContent();
+  const total = async () => {await page.waitForFunction(() => !document.querySelector('.cart-clear').disabled); return page.locator('#cart-total').textContent();};
   try {
     await page.goto('http://localhost:8080/catalogue.html?view=all');
     await page.locator('.product-card').nth(2).waitFor();
@@ -44,6 +52,7 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', {name: 'Close cart', exact: true}).click();
     repriced = true;
     await page.goto('http://localhost:8080/index.html');
+    await page.waitForFunction(() => document.querySelector('[data-cart-count]').textContent === '4');
     assert.equal(await page.locator('[data-cart-count]').textContent(), '4');
     await open(); await page.locator('.cart-item').nth(1).waitFor();
     assert.equal(await total(), 'RM 37.05');

@@ -1,0 +1,63 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {readFile} from 'node:fs/promises';
+import {handleCustomer, validCart} from '../auth-worker/customer.mjs';
+import {handleStaff} from '../auth-worker/staff.mjs';
+const sqlite = new DatabaseSync(':memory:');
+sqlite.exec(await readFile(new URL('../auth-worker/staff-schema.sql', import.meta.url), 'utf8'));
+const db = {prepare(sql) {let values = []; const query = {bind(...args) {values = args; return query;}, async first() {return sqlite.prepare(sql).get(...values) || null;}, async run() {const result = sqlite.prepare(sql).run(...values); return {meta: {changes: Number(result.changes)}};}}; return query;}, async batch(queries) {return Promise.all(queries.map(q => q.run()));}};
+const origin = 'https://ab-tech-one-solution.pages.dev';
+const env = {ALLOWED_ORIGIN: origin, STAFF_DB: db, STAFF_PASSWORD_PEPPER: 'p'.repeat(40)};
+const account = {username: 'Customer_One', password: 'Camera1!', confirmPassword: 'Camera1!'};
+const request = (path, method = 'GET', data, token, source = origin) => new Request('https://auth.test/customer/' + path, {method, headers: {Origin: source, 'Content-Type': 'application/json', 'CF-Connecting-IP': '127.0.0.1', ...(token ? {Authorization: 'Bearer ' + token} : {})}, ...(data ? {body: JSON.stringify(data)} : {})});
+const register = async username => (await handleCustomer(request('register', 'POST', {...account, username}), env)).json();
+test.beforeEach(() => sqlite.exec('DELETE FROM staff_attempts'));
+test('Customer schema initializes and public signup hashes passwords and logs the new customer in', async () => {
+  assert.equal((await handleCustomer(request('status'), env)).status, 200);
+  for (const data of [{...account, password: 'weakpass', confirmPassword: 'weakpass'}, {...account, confirmPassword: 'Different1!'}]) assert.equal((await handleCustomer(request('register', 'POST', data), env)).status, 400);
+  const result = await register(account.username);
+  assert.match(result.token, /^[a-f0-9]{64}$/); assert.equal(result.username, 'customer_one'); assert.deepEqual(result.items, []);
+  const stored = sqlite.prepare('SELECT * FROM customer_users').get(); assert.notEqual(stored.password_hash, account.password);
+  assert.notEqual(sqlite.prepare('SELECT token_hash FROM customer_sessions').get().token_hash, result.token);
+  assert.equal((await handleCustomer(request('register', 'POST', {...account, username: 'CUSTOMER_ONE'}), env)).status, 409);
+});
+test('Cart writes require a customer session and preserve only safe product references and quantities', async () => {
+  assert.equal((await handleCustomer(request('cart', 'PUT', {items: [], version: 0}), env)).status, 401);
+  const {token} = await (await handleCustomer(request('login', 'POST', account), env)).json();
+  const item = {id: 'camera', category: 'CCTV Systems', quantity: 2, price: 0};
+  const response = await handleCustomer(request('cart', 'PUT', {items: [item], version: 0}, token), env);
+  assert.equal(response.status, 200); const result = await response.json();
+  assert.deepEqual(result.items, [{id: 'camera', category: 'CCTV Systems', quantity: 2}]); assert.equal(result.version, 1);
+  assert.equal((await handleCustomer(request('cart', 'PUT', {items: [], version: 0}, token), env)).status, 409);
+  assert.equal((await handleCustomer(request('cart', 'PUT', {items: [{...item, quantity: 0}], version: 1}, token), env)).status, 400);
+  assert.deepEqual((await (await handleCustomer(request('cart', 'GET', undefined, token), env)).json()).items, result.items);
+});
+test('Customer carts are private per account and remain after logout/login; customer sessions cannot edit staff products', async () => {
+  const first = await (await handleCustomer(request('login', 'POST', account), env)).json();
+  const second = await register('customer_two'); assert.deepEqual(second.items, []);
+  assert.equal((await handleCustomer(request('cart', 'GET', undefined, first.token, 'https://evil.example'), env)).status, 403);
+  const staffRequest = new Request('https://auth.test/staff/categories', {headers: {Origin: origin, Authorization: 'Bearer ' + first.token}});
+  assert.equal((await handleStaff(staffRequest, env)).status, 401);
+  assert.equal((await handleCustomer(request('logout', 'POST', undefined, first.token), env)).status, 200);
+  assert.equal((await handleCustomer(request('me', 'GET', undefined, first.token), env)).status, 401);
+  assert.equal((await handleCustomer(request('login', 'POST', {...account, password: 'Wrong123!'}), env)).status, 401);
+  const again = await (await handleCustomer(request('login', 'POST', account), env)).json();
+  assert.equal(again.items[0].quantity, 2);
+  sqlite.exec('UPDATE customer_sessions SET expires_at=0');
+  assert.equal((await handleCustomer(request('me', 'GET', undefined, again.token), env)).status, 401);
+});
+test('Cart limits, duplicate references and traversal IDs are rejected', () => {
+  const item = {id: 'safe-id', category: 'Category', quantity: 1};
+  assert.equal(validCart([item]), true);
+  for (const items of [[item, item], [{...item, id: '../x'}], [{...item, quantity: 1000}], [{...item, quantity: 1.5}], [{...item, category: ''}], Array(201).fill(item)]) assert.equal(validCart(items), false);
+});
+test('Public customer login is throttled and staff tokens cannot authenticate as customers', async () => {
+  for (let i = 0; i < 10; i++) assert.equal((await handleCustomer(request('login', 'POST', {...account, password: 'Wrong123!'}), env)).status, 401);
+  assert.equal((await handleCustomer(request('login', 'POST', account), env)).status, 429);
+  const staffOnlyToken = 'c'.repeat(64);
+  const hash = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(staffOnlyToken))).toString('hex');
+  sqlite.prepare('INSERT INTO staff_users (id,username,salt,password_hash,created_at) VALUES (?,?,?,?,?)').run('staff', 'staff_only', 'a'.repeat(64), 'b'.repeat(64), Date.now());
+  sqlite.prepare('INSERT INTO staff_sessions (token_hash,user_id,expires_at) VALUES (?,?,?)').run(hash, 'staff', Math.floor(Date.now()/1000)+1000);
+  assert.equal((await handleCustomer(request('cart', 'GET', undefined, staffOnlyToken), env)).status, 401);
+});

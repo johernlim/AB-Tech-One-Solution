@@ -29,7 +29,7 @@ The branded staff login supports invitation-only username/password accounts and 
 
 ## Customer cart
 
-Customers can add products from catalogue cards or product details, then use Cart in the homepage or catalogue header to change quantities, remove items and view the total. The cart is saved in this browser on this device. Prices refresh when the cart opens. Quote-only products are excluded from the priced total; starting prices and example prices are marked as estimates. Delivery and installation are confirmed separately. This cart does not process payments or place orders.
+Customers can add products from catalogue cards or product details, then use Cart in the homepage or catalogue header to change quantities, remove items and view the total. Adding products requires a customer account. Customers can register publicly with a username and password, and carts are saved per account in D1. Browsing remains public. The product selected before login or registration is automatically added after sign-in. Customer sessions last up to eight hours in the current browser tab; passwords are never stored in the browser. Prices refresh when the cart opens. Customer accounts are separate from staff accounts and have no access to staff editing. Quote-only products are excluded from the priced total; starting prices and example prices are marked as estimates. Delivery and installation are confirmed separately. This cart does not process payments or place orders.
 
 Run `node tests/cart-browser.cjs` with the local preview running to verify cart behaviour.
 
@@ -38,3 +38,9 @@ Run `node tests/cart-browser.cjs` with the local preview running to verify cart 
 The staff workspace has Add category and Remove category controls. Categories are stored in `data/categories.json` and shared by the homepage, catalogue, contact service selector and cart. Adding a category publishes that list together with an empty product file in one GitHub commit. Removing a category hides it from public browsing and keeps its product file for recovery. Removed category IDs cannot be reused accidentally. Changes appear after Cloudflare deployment. The Worker must deploy the updated `auth-worker` code as well as the static site.
 
 Run `node --test tests/categories.test.mjs tests/staff.test.mjs` and `node tests/categories-browser.cjs` to verify category publishing and page updates.
+
+## Customer accounts
+
+Customer routes are handled by `auth-worker/customer.mjs`. The Worker creates separate `customer_users` and `customer_sessions` tables using additive, idempotent statements on the existing D1 binding. Existing staff tables and data remain intact. Password hashing uses the existing runtime pepper with a customer-specific prefix. Cart writes require a valid customer session and use a version check to prevent overwriting newer edits. No new secret is required. Customer signup has no staff invitation code and does not grant staff permissions.
+
+Run `node --test tests/customer.test.mjs` and `node tests/customer-browser.cjs` to verify authentication, private carts and the pending-product flow.

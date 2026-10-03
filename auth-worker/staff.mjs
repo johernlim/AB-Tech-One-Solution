@@ -39,13 +39,13 @@ async function body(request, limit = 10000) {
   for (const chunk of chunks) {combined.set(chunk, offset); offset += chunk.length;}
   return JSON.parse(new TextDecoder().decode(combined));
 }
-async function reserveAttempt(env, key, maximum, seconds = 900) {
+export async function reserveAttempt(env, key, maximum, seconds = 900) {
   const now = Math.floor(Date.now() / 1000);
   // Reserve before password hashing so parallel requests cannot bypass the limit.
   const row = await env.STAFF_DB.prepare('INSERT INTO staff_attempts (key,count,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires_at<=? THEN 1 ELSE count+1 END,expires_at=CASE WHEN expires_at<=? THEN excluded.expires_at ELSE expires_at END WHERE expires_at<=? OR count<? RETURNING expires_at').bind(key, now + seconds, now, now, now, maximum).first();
   return row ? {key, expiresAt: row.expires_at} : null;
 }
-async function releaseAttempts(env, attempts) {
+export async function releaseAttempts(env, attempts) {
   // Release only this request's slots, preserving other failures and newer windows.
   await env.STAFF_DB.batch(attempts.map(({key, expiresAt}) => env.STAFF_DB.prepare('UPDATE staff_attempts SET count=MAX(0,count-1) WHERE key=? AND expires_at=?').bind(key, expiresAt)));
 }
