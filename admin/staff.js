@@ -90,7 +90,6 @@ async function upload(file) {
   return (await api('upload', {method: 'POST', body: JSON.stringify({type: file.type, content: data})})).path;
 }
 async function initialize() {
-  if (new URLSearchParams(location.search).get('demo') === '1') return;
   $('login-tab').addEventListener('click', () => tab(false)); $('register-tab').addEventListener('click', () => tab(true));
   document.querySelectorAll('.account-tabs button').forEach(button => button.addEventListener('keydown', event => {
     if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {event.preventDefault(); const register = $('register-form').hidden; tab(register); $(register ? 'register-tab' : 'login-tab').focus();}

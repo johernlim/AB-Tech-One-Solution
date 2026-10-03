@@ -21,8 +21,8 @@ Company logo and Poppins font files were reused from the supplied reference repo
 
 ## Product catalogue and admin
 
-Open `catalogue.html` to choose one of ten product categories, then browse its products. The catalogue includes 12 clearly labelled examples. The admin sidebar contains the same ten categories. Open a category → Products to manage only its products; publishing saves that category. Open `admin/` for the staff workspace, or `admin/?demo=1` to try the Decap editor without changing the live website.
+Open `catalogue.html` to choose one of ten product categories, then browse its products. The catalogue includes 12 clearly labelled examples. The admin sidebar contains the same ten categories. Open a category → Products to manage only its products; publishing saves that category. Open `admin/` to create an invited staff account or log in to the staff workspace.
 
 Live publishing needs a one-time GitHub OAuth and Cloudflare connection. See [the setup guide](docs/ADMIN-SETUP.md) for architecture, owner setup, staff instructions and free-plan boundaries.
 
-The branded staff login supports invitation-only username/password accounts and a product editor backed by the existing GitHub repository. Connecting accounts requires a D1 database and runtime secrets; see [staff account setup](docs/STAFF-ACCOUNTS.md). The original GitHub owner editor remains available during setup.
+The branded staff login supports invitation-only username/password accounts and a product editor backed by the existing GitHub repository. Connecting accounts requires a D1 database and runtime secrets; see [staff account setup](docs/STAFF-ACCOUNTS.md). The admin page uses staff accounts only.
