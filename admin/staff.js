@@ -1,8 +1,10 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
+import {setupPwpAdmin} from './pwp-admin.js?v=pwp-1';
 const $ = id => document.getElementById(id);
 let productCategories = [], categoriesSha;
 let base, token, username, selected, products = [], sha, editing = -1, busy = false;
 const uploadedPhotoPreviews = new Map();
+const pwpAdmin = setupPwpAdmin(api, () => busy, value => busy = value);
 function resetPhotoPreviews() {for (const url of uploadedPhotoPreviews.values()) URL.revokeObjectURL(url); uploadedPhotoPreviews.clear();}
 function renderProductPhotos() {
   const form = $('staff-product-form');
@@ -55,6 +57,7 @@ function render() {
 }
 async function loadCategory(category) {
   if (busy) return;
+  pwpAdmin.showProducts();
   busy = true; $('add-staff-product').disabled = true;
   notice('staff-workspace-message', 'Loading products…');
   try {
@@ -64,7 +67,7 @@ async function loadCategory(category) {
     $('staff-categories').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.slug === category.slug)));
     notice('staff-workspace-message', ''); render();
   } catch (error) { notice('staff-workspace-message', error.message, true); }
-  finally {busy = false; $('add-staff-product').disabled = !sha;}
+  finally {busy = false; $('add-staff-product').disabled = !sha; $('remove-staff-category').disabled = !selected || selected.slug === 'pwp';}
 }
 async function workspace() {
   $('admin-home').hidden = true; $('staff-workspace').hidden = false;
@@ -182,7 +185,7 @@ async function initialize() {
     if (busy) return;
     busy = true; $('staff-logout').disabled = true;
     try {await api('logout', {method: 'POST'});} catch {} finally {
-      token = null; products = []; sha = null; $('staff-products').replaceChildren(); $('staff-product-dialog').close(); $('staff-product-form').reset(); $('staff-workspace').hidden = true; $('admin-home').hidden = false; busy = false; $('staff-logout').disabled = false; notice('account-message', 'You have logged out.');
+      token = null; products = []; sha = null; pwpAdmin.reset(); $('staff-products').replaceChildren(); $('staff-product-dialog').close(); $('staff-product-form').reset(); $('staff-workspace').hidden = true; $('admin-home').hidden = false; busy = false; $('staff-logout').disabled = false; notice('account-message', 'You have logged out.');
     }
   });
   $('add-staff-product').addEventListener('click', () => editProduct(-1));

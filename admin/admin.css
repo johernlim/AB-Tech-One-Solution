@@ -51,3 +51,12 @@ body{min-height:100vh}#nc-root a[class*="GridCardLink"][href*="/entries/"]{heigh
 #register-form .account-submit{margin-top:14px}
 .category-management{display:flex;flex-direction:column;gap:14px;margin-bottom:18px}.category-management h2{font-size:17px}.category-management .button{font-size:12px;padding:10px 14px}.category-product-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}.category-product-actions .button{font-size:12px;padding:11px 14px}#close-staff-category{background:none;border:0;color:var(--mint);font-size:25px;cursor:pointer}@media(max-width:700px){.category-management{flex-direction:row;align-items:center;justify-content:space-between}.category-product-actions{flex-direction:column;gap:8px}.category-product-actions .button{font-size:10px;padding:9px 10px}}
 .product-photo-preview img{width:180px;height:140px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#142029}.product-gallery-preview{display:flex;gap:10px;flex-wrap:wrap}.product-gallery-preview img{width:90px;height:75px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#142029}
+/* PWP offer management */
+.pwp-picker{border:1px solid rgba(212,252,238,.2);border-radius:12px;padding:18px;min-width:0}
+.pwp-picker legend{color:#d4fcee;padding:0 6px;font-weight:600}
+.pwp-choice{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 0;border-bottom:1px solid rgba(212,252,238,.12)}
+.pwp-choice:last-child{border-bottom:0}.pwp-choice .checkbox-field{flex:1;align-items:center}.pwp-choice .checkbox-field span{overflow-wrap:anywhere}
+.pwp-addon-price{max-width:140px}.pwp-offer-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px;background:rgba(212,252,238,.04);border:1px solid rgba(212,252,238,.16);border-radius:14px;margin:20px 0}
+.pwp-admin form{padding:24px;background:#1b2932;border:1px solid rgba(212,252,238,.2);border-radius:18px;margin-top:24px}.pwp-admin form h3{margin-bottom:20px}
+#staff-pwp-open{width:100%;margin-bottom:20px}#staff-pwp-open[aria-pressed=true]{background:#d4fcee;color:#14282e}
+@media(max-width:600px){.pwp-choice,.pwp-offer-card{align-items:stretch;flex-direction:column}.pwp-addon-price{max-width:none}.pwp-admin form{padding:16px}.pwp-picker{padding:12px}}

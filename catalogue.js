@@ -1,6 +1,9 @@
 'use strict';
 import {loadCategories, renderCategoryCards} from './category-store.js';
-import {addToCart} from './cart.js?v=checkout-2';
+import {addToCart} from './cart.js?v=pwp-1';
+import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-1';
+const pwpOffers = await loadPwpOffers().catch(() => []);
+const hasPwp = product => pwpOffers.some(offer => activeOffer(offer) && offer.qualifiers.includes(productKey(product)));
 const productCategories = await loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];});
 renderCategoryCards(document.querySelector('.catalogue-categories'), productCategories);
 const categories = productCategories.map(category => category.name);
@@ -58,6 +61,10 @@ function showDetails(product, button) {
   activeProductButton = button;
   document.getElementById('detail-add-cart').onclick = () => addToCart(product);
   document.getElementById('detail-name').textContent = product.name;
+  let badge = document.getElementById('detail-pwp-badge');
+  if (!badge) {badge = element('p', 'pwp-badge'); badge.id = 'detail-pwp-badge'; document.getElementById('detail-name').after(badge);}
+  badge.hidden = !hasPwp(product) && product.category !== PWP_CATEGORY;
+  badge.textContent = product.category === PWP_CATEGORY ? 'PWP add-on · Unlock special prices with qualifying products in your cart.' : 'PWP offer available · Choose your discounted add-ons in the cart.';
   document.getElementById('detail-category').textContent = product.category;
   document.getElementById('detail-price').textContent = price(product);
   document.getElementById('detail-description').textContent = product.description;
@@ -98,6 +105,7 @@ function card(product) {
   photo.append(img);
   if (product.new_arrival ?? product.example) photo.append(element('span', 'sample-badge', 'NEW ARRIVAL'));
   const copy = element('div', 'product-card-copy');
+  if (hasPwp(product)) copy.append(element('span', 'pwp-badge', 'PWP offer available'));
   copy.append(element('span', 'product-category', product.category));
   const heading = element('h3'); const name = element('button', 'product-title-button', product.name); name.type = 'button'; heading.append(name);
   const bottom = element('div', 'product-card-bottom');

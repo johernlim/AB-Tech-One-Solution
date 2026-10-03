@@ -38,5 +38,9 @@ export const productCategories = [
   {
     "name": "Digital Signage",
     "slug": "signage"
+  },
+  {
+    "name": "PWP Products",
+    "slug": "pwp"
   }
 ];

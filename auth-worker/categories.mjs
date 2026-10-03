@@ -39,6 +39,7 @@ export async function changeCategories(env, user, method, slug, data) {
     categories = [...categories, category];
     additions.push({path: 'data/categories/' + category.slug + '.json', mode: '100644', type: 'blob', content: '{"products":[]}\n'});
   } else {
+    if (slug === 'pwp') return json({error: 'PWP Products is the dedicated add-on category. Manage its products instead of removing it.'}, 400);
     if (!categories.some(c => c.slug === slug)) return json({error: 'Category not found.'}, 404);
     categories = categories.filter(c => c.slug !== slug);
   }
