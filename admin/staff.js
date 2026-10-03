@@ -70,6 +70,7 @@ async function loadCategory(category) {
   finally {busy = false; $('add-staff-product').disabled = !sha; $('remove-staff-category').disabled = !selected || selected.slug === 'pwp';}
 }
 async function workspace() {
+  $('staff-category-menu').open = false;
   $('admin-home').hidden = true; $('staff-workspace').hidden = false;
   $('signed-in-as').textContent = 'Signed in as ' + username;
   $('add-staff-product').disabled = true; $('remove-staff-category').disabled = true;
