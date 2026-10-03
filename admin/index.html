@@ -1,5 +1,11 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Staff Workspace | AB Tech One Solution</title><link rel="icon" href="../assets/logo.png"><link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="admin.css?v=staff-1"><script>window.CMS_MANUAL_INIT = true;</script><script type="module" src="admin.js"></script><script type="module" src="staff.js"></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Staff Workspace | AB Tech One Solution</title><link rel="icon" href="../assets/logo.png"><link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="admin.css?v=staff-1"><script>
+// Staff authentication is hosted on the production Cloudflare site.
+if (location.origin === 'https://johernlim.github.io' && location.pathname.startsWith('/AB-Tech-One-Solution/admin/')) {
+  location.replace('https://ab-tech-one-solution.pages.dev/admin/' + location.search + location.hash);
+}
+window.CMS_MANUAL_INIT = true;
+</script><script type="module" src="admin.js"></script><script type="module" src="staff.js"></script></head>
 <body><div class="background" aria-hidden="true"><i></i><i></i><i></i></div>
 <main id="admin-home" class="login-shell">
 <a class="back-link" href="../catalogue.html">← Back to catalogue</a>

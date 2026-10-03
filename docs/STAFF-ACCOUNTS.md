@@ -1,5 +1,7 @@
 # Staff username and password accounts
 
+Use https://ab-tech-one-solution.pages.dev/admin/ for staff accounts. The GitHub Pages admin address redirects here because the backend accepts the production Cloudflare origin.
+
 The branded staff login uses the existing Cloudflare Worker and a D1 database. Staff register with a username, password and owner-provided invitation code. Unique usernames are enforced atomically in SQLite, ignoring letter case. New passwords require 8–128 characters, at least one number, at least one special symbol (such as !), and matching confirmation. Existing accounts can continue logging in with their saved passwords. Only invited accounts can register.
 
 Staff accounts publish product edits through the Worker to the existing GitHub repository; staff do not need GitHub accounts. The original GitHub owner editor and demo remain available under **Owner access & editor demo**.
