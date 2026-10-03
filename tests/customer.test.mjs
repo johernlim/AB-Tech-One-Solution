@@ -188,6 +188,12 @@ test('Firebase handles customer passwords and resets while profiles, private car
     assert.equal((await handleCustomer(request('login', 'POST', data), firebaseEnv)).status, 401);
     const afterReset = await (await handleCustomer(request('login', 'POST', {...data, password: firebaseUser.password}), firebaseEnv)).json();
     assert.equal(afterReset.items[0].quantity, 2); assert.equal(sqlite.prepare('SELECT id FROM customer_users WHERE firebase_uid=?').get(firebaseUser.localId).id, stored.id);
+    // Firebase's hosted reset defaults can differ from this site's signup rules.
+    firebaseUser.password = 'six123';
+    assert.equal((await handleCustomer(request('login', 'POST', {...data, password: firebaseUser.password}), firebaseEnv)).status, 200);
+    firebaseUser.password = 'p'.repeat(129);
+    assert.equal((await handleCustomer(request('login', 'POST', {...data, password: firebaseUser.password}), firebaseEnv)).status, 200);
+    firebaseUser.password = 'ResetNew1!';
     assert.equal((await handleCustomer(request('login', 'POST', {...data, password: firebaseUser.password}), env)).status, 503);
     firebaseUser.disabled = true; assert.equal((await handleCustomer(request('me', 'GET', undefined, afterReset.token), firebaseEnv)).status, 401); firebaseUser.disabled = false;
     const legacy = {...account, email: 'migration.customer@gmail.com'}, legacyResult = await (await handleCustomer(request('register', 'POST', legacy), env)).json();

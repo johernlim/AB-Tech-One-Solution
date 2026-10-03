@@ -10,6 +10,7 @@ Firebase Authentication handles customer passwords, login and reset email delive
 4. Copy `apiKey` and `projectId` from the displayed `firebaseConfig`. These are public app configuration values. Do not provide a service-account private key.
 5. In **Authentication → Settings → Authorized domains**, add `ab-tech-one-solution.pages.dev`.
 6. Optionally open **Authentication → Templates → Password reset** and set the sender display name to **AB Tech One Solution**. Retain Firebase's hosted reset link unless a custom handler is intentionally implemented.
+7. To match the website's registration rules, set Firebase's **Authentication → Settings → Password policy** to require 8–128 characters, a number and a non-alphanumeric character. Login accepts the credentials Firebase validates, including a password reset under its default policy, so changing provider policy cannot lock a customer out through conflicting browser length rules.
 
 ## Worker configuration
 

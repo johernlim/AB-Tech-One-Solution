@@ -158,7 +158,8 @@ export async function handleCustomer(request, env) {
       if (!validGmail(email)) return json({error: gmailError(email) || 'Enter your Gmail address.'}, 400);
       if ((registering || linking) && profileError(data)) return json({error: profileError(data)}, 400);
       if (linking && !validUsername(username)) return json({error: 'Enter your existing username.'}, 400);
-      if (typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 128) return json({error: 'Password must contain 8–128 characters.'}, 400);
+      const firebasePassword = firebaseConfigured(env) && !registering && !linking;
+      if (typeof data.password !== 'string' || data.password.length < (firebasePassword ? 6 : 8) || data.password.length > (firebasePassword ? 4096 : 128)) return json({error: firebasePassword ? 'Enter your password (6–4096 characters).' : 'Password must contain 8–128 characters.'}, 400);
       const userAttempt = await reserveAttempt(env, scope + ':user:' + (linking ? username : gmailKey(email)), 10);
       if (!userAttempt) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
       let authenticated = false;
