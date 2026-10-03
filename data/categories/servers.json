@@ -17,7 +17,8 @@
       "installation": "Hardware, licences and installation quoted after assessment.",
       "availability": "Example — contact us to confirm availability",
       "published": true,
-      "example": true
+      "example": true,
+      "new_arrival": false
     }
   ]
 }

@@ -23,7 +23,8 @@
       "installation": "Installation quoted separately.",
       "availability": "contact us to confirm availability",
       "published": true,
-      "example": false
+      "example": false,
+      "new_arrival": false
     },
     {
       "id": "cctv-kit",
@@ -42,7 +43,8 @@
       "installation": "Final installation and cabling price depends on a site assessment.",
       "availability": "Example — contact us to confirm availability",
       "published": true,
-      "example": true
+      "example": true,
+      "new_arrival": false
     }
   ]
 }

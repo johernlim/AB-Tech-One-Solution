@@ -17,7 +17,8 @@
       "installation": "Scope and support quoted after discussing your needs.",
       "availability": "Example — contact us to confirm availability",
       "published": true,
-      "example": true
+      "example": true,
+      "new_arrival": false
     }
   ]
 }

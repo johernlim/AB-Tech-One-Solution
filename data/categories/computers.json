@@ -17,7 +17,8 @@
       "installation": "Device setup can be included in your quote.",
       "availability": "Example — contact us to confirm availability",
       "published": true,
-      "example": true
+      "example": true,
+      "new_arrival": false
     }
   ]
 }

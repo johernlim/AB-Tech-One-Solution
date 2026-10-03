@@ -17,7 +17,8 @@
       "installation": "Installation and coverage planning quoted separately.",
       "availability": "Example — contact us to confirm availability",
       "published": true,
-      "example": true
+      "example": true,
+      "new_arrival": false
     },
     {
       "id": "wifi-mesh",
@@ -36,7 +37,8 @@
       "installation": "Final price depends on building size and cabling.",
       "availability": "Example — contact us to confirm availability",
       "published": true,
-      "example": true
+      "example": true,
+      "new_arrival": false
     }
   ]
 }

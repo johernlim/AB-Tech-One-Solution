@@ -17,7 +17,8 @@
       "installation": "Door lock, wiring and installation quoted separately.",
       "availability": "Example — contact us to confirm availability",
       "published": true,
-      "example": true
+      "example": true,
+      "new_arrival": false
     }
   ]
 }
