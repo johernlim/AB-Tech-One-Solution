@@ -15,6 +15,8 @@ const assert = require('node:assert/strict');
   try {
     await page.goto('http://localhost:8080/index.html');
     await page.locator('[data-customer-account]').click();
+    assert.equal(await page.getByRole('button', {name: 'Link an existing username account', exact: true}).count(), 0);
+    assert.equal(await page.locator('#customer-link-form').count(), 0);
     const login = page.locator('#customer-login-form');
     await login.locator('[name=email]').fill('person123@gmial.com');
     assert.match(await login.locator('[name=email]').evaluate(e => e.validationMessage), /@gmail.com/);

@@ -27,7 +27,7 @@ The frontend continues calling the Worker. Passwords travel over HTTPS to Fireba
 
 ## Existing customers
 
-Existing Gmail customers connect to Firebase on their first successful login using their current password. Username customers first use **Link an existing username account**. The existing D1 account ID and cart are preserved. After linking, the old local password hash is replaced with an unusable random value and is never accepted as a fallback. Old local sessions and reset links are removed.
+Existing Gmail customers connect to Firebase on their first successful login using their current password. The legacy username linking option has been removed from the public account form. The existing D1 account ID and cart are preserved when a Gmail account connects. After connection, the old local password hash is replaced with an unusable random value and is never accepted as a fallback. Old local sessions and reset links are removed.
 
 Unmigrated accounts must log in once before Firebase can send their reset email. A customer who already forgot their old local password will need an owner-assisted recovery process before migration; do not create an unverified account link or accept an unrelated Firebase identity. This limitation is communicated in the reset response without disclosing account existence.
 

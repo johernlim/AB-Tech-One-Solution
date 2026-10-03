@@ -1,6 +1,6 @@
 # Customer Gmail accounts and password reset email
 
-Customer accounts and profile fields remain in the existing Cloudflare D1 database. Staff accounts remain separate. Customers with an old username account can use **Link an existing username account** to add Gmail and profile details without losing their cart.
+Customer accounts and profile fields remain in the existing Cloudflare D1 database. Staff accounts remain separate. The public account form supports Gmail login, registration and password reset; the legacy username linking option has been removed.
 
 The login, registration and reset forms share Gmail format validation. Domain typos such as `gmial.com` are rejected with a spelling suggestion; the address is never silently changed. This validates spelling and format, not ownership of a real Gmail mailbox. Gmail dot aliases share one customer account.
 
