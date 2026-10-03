@@ -23,10 +23,26 @@ async function api(path, options = {}) {
       if (!base) throw new Error();
     } catch {throw new Error('Could not connect to staff login. Please refresh and try again.');}
   }
-  const response = await fetch(new URL('/staff/' + path, base), {...options, cache: 'no-store', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})}, signal: AbortSignal.timeout(20000)});
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Please try again shortly.');
-  return result;
+  const readOnly = (options.method || 'GET').toUpperCase() === 'GET';
+  for (let attempt = 0; attempt < (readOnly ? 2 : 1); attempt++) {
+    let retryable = true;
+    try {
+      const response = await fetch(new URL('/staff/' + path, base), {...options, cache: 'no-store', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})}, signal: AbortSignal.timeout(20000)});
+      retryable = response.status >= 500;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Please try again shortly.');
+      return result;
+    } catch (error) {
+      if (readOnly && attempt === 0 && retryable) {
+        await new Promise(resolve => setTimeout(resolve, 600));
+        continue;
+      }
+      if (error.name === 'TimeoutError' || error.name === 'AbortError' || error instanceof TypeError) {
+        throw new Error(readOnly ? 'Could not load data after retrying. Please refresh or select the category again.' : 'The connection was interrupted. Your change may have completed. Reload and check before trying again.');
+      }
+      throw error;
+    }
+  }
 }
 function tab(register) {
   $('register-form').hidden = !register; $('login-form').hidden = register;
@@ -72,13 +88,16 @@ async function loadCategory(category) {
 }
 async function workspace() {
   $('staff-category-menu').open = false;
+  selected = null; products = []; sha = null;
+  $('staff-products').replaceChildren();
+  $('staff-category-title').textContent = 'Choose a category';
   $('admin-home').hidden = true; $('staff-workspace').hidden = false;
   $('signed-in-as').textContent = 'Signed in as ' + username;
   $('add-staff-product').disabled = true; $('edit-staff-category').disabled = true;
   try {
     const data = await api('categories'); productCategories = data.categories; categoriesSha = data.sha;
     renderCategories();
-    await selectFirstCategory();
+    notice('staff-workspace-message', 'Expand Categories and choose a category to view its products.');
   } catch (error) {notice('staff-workspace-message', error.message, true);}
 }
 function renderCategories() {
