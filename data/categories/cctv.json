@@ -2,13 +2,13 @@
   "products": [
     {
       "id": "cctv-turret",
-      "name": "4MP Indoor Turret Camera",
+      "name": "Uniarch UHO-C1-M3F2 3MP Wi-Fi Cube Camera",
       "category": "CCTV Systems",
-      "image": "assets/products/cctv.svg",
+      "image": "assets/uploads/02db892c-870b-444e-b6b3-1a5397ebfcad.png",
       "gallery": [],
       "price": 666,
       "price_mode": "fixed",
-      "description": "A compact camera concept for shop floors, entrances and indoor monitoring.",
+      "description": "High quality image with 3MP, 1/3.0\" CMOS sensor\nBuilt-in Mic & Speaker, support two-way audio, offer better interaction\nSmart IR, up to 10 m (32.8 ft.) IR distance\nSupports 512 GB Micro SD card\nSupport Wi-Fi for stable wireless connection \nMagnetic base for easy installation and flexible positioning \nSupport human detection, pet detection",
       "specifications": [
         "4MP camera concept",
         "Infrared night viewing",
