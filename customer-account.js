@@ -1,6 +1,6 @@
 import {birthDateInputs, setupBirthDatePicker} from './birth-date-picker.js';
 import {validPassword, passwordRequirement} from './password-policy.js';
-import {normalizeGmail, gmailError, validContact, contactError} from './customer-validation.js';
+import {normalizeGmail, gmailError, validContact, contactError, normalizeShippingAddress, shippingAddressError} from './customer-validation.js';
 const root = new URL('.', import.meta.url), sessionKey = 'abtech-customer-session:' + root.pathname;
 let customer = null, base, waiters = [], trigger, busy = false;
 export const getCustomer = () => customer;
@@ -57,7 +57,8 @@ function renderProfile() {
     const term = document.createElement('dt'), description = document.createElement('dd');
     term.textContent = label; description.textContent = value || 'Not provided'; details.append(term, description);
   }
-  $('customer-address-form').elements.shippingAddress.value = customer.shippingAddress || '';
+  const input = $('customer-address-form').elements.shippingAddress;
+  input.value = customer.shippingAddress || ''; input.setCustomValidity('');
 }
 function openAccount(productName) {
   trigger = document.activeElement;
@@ -129,15 +130,19 @@ for (const [kind, path] of [['login', 'login'], ['register', 'register'], ['forg
   } catch (error) {message(error.message || 'Could not connect. Please try again.', true);}
   finally {busy = false; modal.querySelectorAll('button').forEach(button => button.disabled = false);}
 });
+$('customer-address-form').elements.shippingAddress.addEventListener('input', event => {event.currentTarget.setCustomValidity(''); message('');});
 $('customer-address-form').addEventListener('submit', async event => {
   event.preventDefault(); if (busy || !customer) return;
-  const owner = customer.token, address = event.currentTarget.elements.shippingAddress.value;
+  const input = event.currentTarget.elements.shippingAddress;
+  const error = shippingAddressError(input.value, customer.shippingAddress);
+  if (error) {input.setCustomValidity(error); input.reportValidity(); message(error, true); return;}
+  const owner = customer.token, address = normalizeShippingAddress(input.value);
   busy = true; modal.querySelectorAll('button').forEach(button => button.disabled = true);
   message('Saving your shipping address…');
   try {
     const result = await send('profile', {method: 'PUT', body: JSON.stringify({shippingAddress: address})});
     if (customer?.token === owner) {customer = {...customer, ...result}; renderProfile(); message(result.message);}
-  } catch (error) {message(error.message || 'Could not save your address. Please try again.', true);}
+  } catch (error) {message(error.message || 'Could not save your address. Please try again.', true); if (error.status === 400) {input.setCustomValidity(error.message); input.reportValidity();}}
   finally {busy = false; modal.querySelectorAll('button').forEach(button => button.disabled = false);}
 });
 $('customer-logout').addEventListener('click', async () => {

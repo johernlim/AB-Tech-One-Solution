@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
   const browser = await chromium.launch({channel: 'chrome', headless: true});
   const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  const users = new Map(), tokens = new Map(); let sequence = 0, writes = 0, failSave = false;
+  const users = new Map(), tokens = new Map(); let sequence = 0, writes = 0, failSave = false, profileWrites = 0;
   await page.route('https://ab-tech-catalogue-auth.johern20154.workers.dev/customer/**', async route => {
     const req = route.request(), path = new URL(req.url()).pathname.split('/').pop();
     const cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS'};
@@ -18,7 +18,7 @@ const assert = require('node:assert/strict');
       else {const result = users.get(fields.email); const nextToken = (++sequence).toString(16).padStart(64, '0'); tokens.set(nextToken, fields.email); data = {...result, token: nextToken};}
     } else if (!user) {status = 401; data = {error: 'Please log in to use your cart.'};}
     else if (path === 'logout') {tokens.delete(token); data = {message: 'Logged out.'};}
-    else if (path === 'profile' && req.method() === 'PUT') {user.shippingAddress = req.postDataJSON().shippingAddress.trim(); data = {...user, message: 'Shipping address saved.'};}
+    else if (path === 'profile' && req.method() === 'PUT') {profileWrites++; user.shippingAddress = req.postDataJSON().shippingAddress.trim(); data = {...user, message: 'Shipping address saved.'};}
     else if (req.method() === 'PUT') {
       writes++;
       if (failSave) {status = 500; data = {error: 'Unable to save your cart. Please try again.'};}
@@ -56,6 +56,18 @@ const assert = require('node:assert/strict');
     await page.locator('[name=shippingAddress]').fill('12 Jalan Test\n34000 Taiping, Perak');
     await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
     await page.getByText('Shipping address saved.', {exact: true}).waitFor(); await count(1);
+    assert.equal(profileWrites, 1);
+    await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
+    assert.match(await page.locator('[name=shippingAddress]').evaluate(e => e.validationMessage), /modify at least one word/);
+    assert.equal(profileWrites, 1);
+    await page.locator('[name=shippingAddress]').fill('   ');
+    await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
+    assert.match(await page.locator('[name=shippingAddress]').evaluate(e => e.validationMessage), /enter your shipping address/);
+    assert.equal(profileWrites, 1);
+    await page.locator('[name=shippingAddress]').fill('15 Jalan Test\n34000 Taiping, Perak');
+    await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
+    await page.getByText('Shipping address saved.', {exact: true}).waitFor();
+    assert.equal(profileWrites, 2);
     await page.screenshot({path: '.preview/customer-account-address.png'});
     await page.getByRole('button', {name: 'Close account window', exact: true}).click();
     await page.locator('[data-cart-open]').click(); await page.locator('.cart-item').waitFor();
@@ -70,7 +82,7 @@ const assert = require('node:assert/strict');
     await page.screenshot({path: '.preview/full-cart-mobile.png'});
     await page.setViewportSize({width: 1440, height: 1000});
     await page.locator('[data-customer-account]').click();
-    assert.equal(await page.locator('[name=shippingAddress]').inputValue(), '12 Jalan Test\n34000 Taiping, Perak');
+    assert.equal(await page.locator('[name=shippingAddress]').inputValue(), '15 Jalan Test\n34000 Taiping, Perak');
     await page.getByRole('button', {name: 'Close account window', exact: true}).click();
     await page.goto('http://localhost:8080/index.html'); await count(1);
     await logout();

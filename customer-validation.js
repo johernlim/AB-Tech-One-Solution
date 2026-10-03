@@ -27,3 +27,12 @@ export function profileError(data) {
   if (!['male', 'female', 'prefer_not_to_say'].includes(data.gender)) return 'Please choose your gender option.';
   return '';
 }
+
+export const normalizeShippingAddress = value => typeof value === 'string' ? value.replace(/\r\n?/g, '\n').trim() : '';
+export function shippingAddressError(value, saved = '') {
+  if (typeof value !== 'string' || value.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) return 'Enter a shipping address of up to 1,000 characters.';
+  const address = normalizeShippingAddress(value);
+  if (!address) return 'Please enter your shipping address before saving.';
+  if (address.replace(/\s+/g, ' ') === normalizeShippingAddress(saved).replace(/\s+/g, ' ')) return 'Please modify at least one word before saving.';
+  return '';
+}

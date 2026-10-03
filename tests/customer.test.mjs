@@ -222,6 +222,13 @@ test('Customer profile details and shipping addresses persist privately without 
   assert.equal(profile.shippingAddress, address); assert.equal(profile.fullName, account.fullName);
   assert.equal((await (await handleCustomer(request('me', 'GET', undefined, second.token), env)).json()).shippingAddress, '');
   assert.deepEqual(sqlite.prepare('SELECT cart_json,cart_version FROM customer_users WHERE email=?').get(profileEmail), before);
-  await handleCustomer(request('profile', 'PUT', {shippingAddress: ''}, first.token), env);
-  assert.equal((await (await handleCustomer(request('me', 'GET', undefined, first.token), env)).json()).shippingAddress, '');
+  for (const shippingAddress of ['', '   ', address, '  '+address+'  ', address.replace('\n', '   ')]) {
+    const response = await handleCustomer(request('profile', 'PUT', {shippingAddress}, first.token), env);
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /Please (enter|modify)/);
+    assert.equal((await (await handleCustomer(request('me', 'GET', undefined, first.token), env)).json()).shippingAddress, address);
+  }
+  const changed = address.replace('12 Jalan', '15 Jalan');
+  assert.equal((await handleCustomer(request('profile', 'PUT', {shippingAddress: changed}, first.token), env)).status, 200);
+  assert.equal((await (await handleCustomer(request('me', 'GET', undefined, first.token), env)).json()).shippingAddress, changed);
 });

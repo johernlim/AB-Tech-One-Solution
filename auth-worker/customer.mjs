@@ -1,6 +1,6 @@
 import {passwordHash, normalizeUsername, validUsername, reserveAttempt, releaseAttempts} from './staff.mjs';
 import {validPassword, passwordRequirement} from '../password-policy.js';
-import {normalizeGmail, validGmail, gmailKey, gmailError, profileError} from '../customer-validation.js';
+import {normalizeGmail, validGmail, gmailKey, gmailError, profileError, normalizeShippingAddress, shippingAddressError} from '../customer-validation.js';
 import {firebaseConfigured, firebaseLogin, firebaseEnsure, firebaseResetEmail, firebaseRefresh, firebaseClaims, firebaseSessionUser, sealFirebaseToken, openFirebaseToken} from './firebase.mjs';
 const encoder = new TextEncoder();
 const hex = bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -205,8 +205,9 @@ export async function handleCustomer(request, env) {
     if (path === '/customer/me' && request.method === 'GET') return json({...profileOf(user), ...cartOf(user)});
     if (path === '/customer/profile' && request.method === 'PUT') {
       const data = await body(request);
-      if (typeof data.shippingAddress !== 'string' || data.shippingAddress.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(data.shippingAddress)) return json({error: 'Enter a shipping address of up to 1,000 characters.'}, 400);
-      const address = data.shippingAddress.replace(/\r\n?/g, '\n').trim();
+      const error = shippingAddressError(data.shippingAddress, user.shipping_address);
+      if (error) return json({error}, 400);
+      const address = normalizeShippingAddress(data.shippingAddress);
       await env.STAFF_DB.prepare('UPDATE customer_users SET shipping_address=? WHERE id=?').bind(address, user.id).run();
       return json({...profileOf({...user, shipping_address: address}), message: 'Shipping address saved.'});
     }
