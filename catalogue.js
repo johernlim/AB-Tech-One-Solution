@@ -100,12 +100,13 @@ function card(product) {
   const copy = element('div', 'product-card-copy');
   copy.append(element('span', 'product-category', product.category));
   const heading = element('h3'); const name = element('button', 'product-title-button', product.name); name.type = 'button'; heading.append(name);
-  copy.append(heading, element('p', '', product.description));
   const bottom = element('div', 'product-card-bottom');
   const cost = element('div', 'product-price', price(product));
   cost.append(element('small', '', product.example ? 'Illustrative price' : product.availability));
+  copy.append(heading, cost);
+  const model = element('p', 'product-model', product.description);
   const details = element('button', '', 'View details ↗'); details.type = 'button';
-  bottom.append(cost, details); copy.append(bottom); article.append(photo, copy);
+  bottom.append(model, details); copy.append(bottom); article.append(photo, copy);
   const add = element('button', 'button product-add-cart', 'Add to cart'); add.type = 'button';
   add.setAttribute('aria-label', 'Add ' + product.name + ' to cart');
   add.addEventListener('click', async () => {add.disabled = true; try {await addToCart(product);} finally {add.disabled = false;}});
