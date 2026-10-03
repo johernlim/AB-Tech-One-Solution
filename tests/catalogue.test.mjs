@@ -13,19 +13,20 @@ const groups = await Promise.all(productCategories.map(async ({name, slug}) => {
 const data = {products: groups.flat()};
 const categories = ['CCTV Systems', 'Alarm Systems', 'Door Access Control', 'Computers & Laptops', 'POS Systems', 'Network Infrastructure', 'WiFi Solutions', 'Server Solutions', 'Software Solutions', 'Digital Signage'];
 
-test('Examples cover all categories, have unique IDs, safe images and explicit example labelling', async () => {
+test('Products cover all categories, have unique IDs, safe images and explicit example flags', async () => {
   assert.equal(data.products.length, 12);
   assert.equal(new Set(data.products.map(p => p.id)).size, data.products.length);
   assert.deepEqual(new Set(data.products.map(p => p.category)), new Set(categories));
   for (const product of data.products) {
-    assert.equal(product.example, true);
+    assert.equal(typeof product.example, 'boolean');
+    assert.equal(typeof product.new_arrival, 'boolean');
     assert.equal(product.published, true);
     assert.ok(product.name && product.description && product.installation && product.availability);
     assert.ok(product.price >= 0 && Number.isFinite(product.price));
     assert.ok(['fixed', 'from', 'quote'].includes(product.price_mode));
-    assert.match(product.image, /^assets\/products\/[\w-]+\.svg$/);
+    assert.match(product.image, /^assets\/(?:products\/[\w-]+\.svg|uploads\/[\w-]+\.(?:png|jpg|jpeg|webp))$/);
     await access(fileURLToPath(new URL(product.image, root)));
-    assert.match(await readFile(new URL(product.image, root), 'utf8'), /EXAMPLE/);
+    if (product.example && product.image.endsWith('.svg')) assert.match(await readFile(new URL(product.image, root), 'utf8'), /EXAMPLE/);
   }
 });
 

@@ -13,9 +13,9 @@ const assert = require('node:assert/strict');
     let status = 200, data;
     if (['register', 'login'].includes(path)) {
       const fields = req.postDataJSON();
-      if (path === 'register') users.set(fields.username, {username: fields.username, items: [], version: 0});
-      if (fields.password === 'Wrong123!') {status = 401; data = {error: 'Username or password is incorrect.'};}
-      else {const result = users.get(fields.username); const nextToken = (++sequence).toString(16).padStart(64, '0'); tokens.set(nextToken, fields.username); data = {...result, token: nextToken};}
+      if (path === 'register') users.set(fields.email, {username: fields.email, email: fields.email, fullName: fields.fullName, items: [], version: 0});
+      if (fields.password === 'Wrong123!') {status = 401; data = {error: 'Gmail or password is incorrect.'};}
+      else {const result = users.get(fields.email); const nextToken = (++sequence).toString(16).padStart(64, '0'); tokens.set(nextToken, fields.email); data = {...result, token: nextToken};}
     } else if (!user) {status = 401; data = {error: 'Please log in to use your cart.'};}
     else if (path === 'logout') {tokens.delete(token); data = {message: 'Logged out.'};}
     else if (req.method() === 'PUT') {
@@ -26,10 +26,11 @@ const assert = require('node:assert/strict');
     return route.fulfill({status, json: data, headers: cors});
   });
   const count = n => page.waitForFunction(n => document.querySelector('[data-cart-count]').textContent === String(n), n);
-  async function submit(username, register = false, password = 'Camera1!') {
+  async function submit(email, register = false, password = 'Camera1!') {
     if (register) await page.locator('#customer-register-tab').click(); else await page.locator('#customer-login-tab').click();
     const form = page.locator(register ? '#customer-register-form' : '#customer-login-form');
-    await form.locator('[name="username"]').fill(username); await form.locator('[name="password"]').fill(password);
+    await form.locator('[name="email"]').fill(email); await form.locator('[name="password"]').fill(password);
+    if (register) {await form.locator('[name="fullName"]').fill('Customer Test'); await form.locator('[name="contactNo"]').fill('01112345678'); await form.locator('[name="dateOfBirth"]').fill('1995-01-01'); await form.locator('[name="gender"]').selectOption('female');}
     if (register) await form.locator('[name="confirmPassword"]').fill(password);
     await form.locator('.customer-submit').click();
   }
@@ -46,18 +47,18 @@ const assert = require('node:assert/strict');
     assert.equal(writes, 0); await count(0);
     await page.getByRole('button', {name: 'Close account window', exact: true}).click();
     await page.locator('.product-add-cart').first().click();
-    await submit('customer_one', true); await count(1);
-    assert.equal(writes, 1); assert.equal(users.get('customer_one').items[0].id, 'cctv-turret');
+    await submit('customer.one@gmail.com', true); await count(1);
+    assert.equal(writes, 1); assert.equal(users.get('customer.one@gmail.com').items[0].id, 'cctv-turret');
     await page.goto('http://localhost:8080/index.html'); await count(1);
     await logout();
     await page.goto('http://localhost:8080/catalogue.html?category=CCTV%20Systems'); await page.locator('.product-card').nth(1).waitFor();
     await page.getByRole('button', {name: 'View 4-Camera CCTV Starter Package', exact: true}).click(); await page.locator('#detail-add-cart').click();
-    await submit('customer_one', false, 'Wrong123!'); await page.getByText('Username or password is incorrect.', {exact: true}).waitFor();
+    await submit('customer.one@gmail.com', false, 'Wrong123!'); await page.getByText('Gmail or password is incorrect.', {exact: true}).waitFor();
     assert.equal(writes, 1);
-    await submit('customer_one'); await count(2); assert.equal(writes, 2);
+    await submit('customer.one@gmail.com'); await count(2); assert.equal(writes, 2);
     await page.getByRole('button', {name: 'Close product details', exact: true}).click(); await logout();
-    await page.locator('.product-add-cart').first().click(); await submit('customer_two', true); await count(1);
-    assert.equal(users.get('customer_two').items.length, 1); assert.equal(users.get('customer_one').items.length, 2);
+    await page.locator('.product-add-cart').first().click(); await submit('customer.two@gmail.com', true); await count(1);
+    assert.equal(users.get('customer.two@gmail.com').items.length, 1); assert.equal(users.get('customer.one@gmail.com').items.length, 2);
     failSave = true; await page.locator('.product-add-cart').first().click(); await page.getByText('Unable to save your cart. Please try again.', {exact: true}).waitFor(); await count(1);
     failSave = false;
     await page.setViewportSize({width: 390, height: 844}); await logout();

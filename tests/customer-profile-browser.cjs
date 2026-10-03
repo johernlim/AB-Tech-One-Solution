@@ -1,0 +1,58 @@
+const {chromium} = require('playwright');
+const assert = require('node:assert/strict');
+(async () => {
+  const browser = await chromium.launch({channel: 'chrome', headless: true});
+  const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  const requests = [];
+  await page.route('https://ab-tech-catalogue-auth.johern20154.workers.dev/customer/**', async route => {
+    const req = route.request();
+    const headers = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'};
+    if (req.method() === 'OPTIONS') return route.fulfill({status: 204, headers});
+    requests.push({path: new URL(req.url()).pathname, body: req.postDataJSON()});
+    return route.fulfill({headers, json: {message: req.url().includes('/forgot-password') ? 'If this Gmail is registered, a password reset link will be sent to it.' : 'Password reset successfully. Log in with your Gmail and new password.'}});
+  });
+  try {
+    await page.goto('http://localhost:8080/index.html');
+    await page.locator('[data-customer-account]').click();
+    const login = page.locator('#customer-login-form');
+    await login.locator('[name=email]').fill('person123@gmial.com');
+    assert.match(await login.locator('[name=email]').evaluate(e => e.validationMessage), /@gmail.com/);
+    await page.getByRole('button', {name: 'Reset password', exact: true}).click();
+    const forgot = page.locator('#customer-forgot-form');
+    assert.match(await forgot.locator('[name=email]').evaluate(e => e.validationMessage), /@gmail.com/);
+    await forgot.locator('.customer-submit').click(); assert.equal(requests.length, 0);
+    await forgot.locator('[name=email]').fill('Person.123@GMAIL.COM');
+    await forgot.locator('.customer-submit').click(); await page.getByText('If this Gmail is registered, a password reset link will be sent to it.', {exact: true}).waitFor();
+    assert.equal(requests[0].body.email, 'person.123@gmail.com');
+    await forgot.getByRole('button', {name: 'Back to login'}).click();
+    await page.locator('#customer-register-tab').click();
+    const register = page.locator('#customer-register-form'), phone = register.locator('[name=contactNo]');
+    await phone.fill('01112345678'); assert.equal(await phone.inputValue(), '01112345678'); assert.equal(await phone.evaluate(e => e.checkValidity()), true);
+    await phone.fill('01212345678'); assert.equal(await phone.inputValue(), '0121234567'); assert.equal(await phone.evaluate(e => e.maxLength), 10);
+    await phone.fill('0111234567'); assert.equal(await phone.evaluate(e => e.checkValidity()), false);
+    await phone.fill('012ABC3456'); assert.equal(await phone.inputValue(), '0123456'); assert.equal(await phone.evaluate(e => e.checkValidity()), false);
+    await phone.evaluate(e => {e.select(); const data = new DataTransfer(); data.setData('text', '011 1234 5678'); e.dispatchEvent(new ClipboardEvent('paste', {clipboardData: data, bubbles: true, cancelable: true}));});
+    assert.equal(await phone.inputValue(), '01112345678'); assert.equal(await phone.evaluate(e => e.checkValidity()), true);
+    await register.locator('[name=dateOfBirth]').fill('2999-01-01'); assert.equal(await register.locator('[name=dateOfBirth]').evaluate(e => e.checkValidity()), false);
+    await register.locator('[name=dateOfBirth]').fill('1995-01-01'); assert.equal(await register.locator('[name=dateOfBirth]').evaluate(e => e.checkValidity()), true);
+    await register.locator('[name=gender]').selectOption('male'); await register.locator('[name=gender]').selectOption('female');
+    await page.screenshot({path: '.preview/customer-profile-desktop.png'});
+    await page.setViewportSize({width: 390, height: 844});
+    assert.equal(await page.locator('.customer-dialog').evaluate(e => e.scrollWidth <= e.clientWidth), true);
+    await page.screenshot({path: '.preview/customer-profile-mobile.png'});
+    await page.goto('http://localhost:8080/reset-password.html');
+    await page.getByText('This reset link is invalid.', {exact: false}).waitFor(); assert.equal(await page.locator('#reset-password-form').isVisible(), false);
+    const token = 'a'.repeat(64);
+    await page.goto('http://localhost:8080/reset-password.html#token=' + token);
+    await page.locator('#reset-password-form').waitFor(); assert.equal(new URL(page.url()).hash, '');
+    await page.locator('[name=password]').fill('Updated1!'); await page.locator('[name=confirmPassword]').fill('Different1!');
+    await page.getByRole('button', {name: 'Save new password'}).click();
+    assert.match(await page.locator('[name=confirmPassword]').evaluate(e => e.validationMessage), /do not match/); assert.equal(requests.length, 1);
+    await page.locator('[name=confirmPassword]').fill('Updated1!'); await page.getByRole('button', {name: 'Save new password'}).click();
+    await page.getByText('Password reset successfully.', {exact: false}).waitFor();
+    assert.equal(requests[1].body.token, token); assert.equal(await page.locator('#reset-password-form').isVisible(), false);
+    assert.deepEqual(errors, []);
+    console.log('Gmail typo messages on login/reset, normalized reset request, Malaysian phone limits, date picker validation, gender options, responsive profile form and reset link/password flow passed.');
+  } finally {await browser.close();}
+})().catch(error => {console.error(error); process.exitCode = 1;});

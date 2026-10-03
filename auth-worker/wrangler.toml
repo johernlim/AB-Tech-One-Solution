@@ -9,6 +9,9 @@ GITHUB_REPO = "johernlim/AB-Tech-One-Solution"
 # Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET as Worker secrets.
 # Staff accounts additionally need STAFF_INVITE_CODE, STAFF_PASSWORD_PEPPER,
 # GITHUB_CATALOGUE_TOKEN runtime secrets and a STAFF_DB D1 binding.
+# Customer reset emails additionally need a verified Cloudflare sending domain,
+# RESET_EMAIL_FROM and a RESET_EMAIL send_email binding. See
+# ../docs/CUSTOMER-EMAIL-SETUP.md before enabling the binding.
 
 [[d1_databases]]
 binding = "STAFF_DB"

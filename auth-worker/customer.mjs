@@ -1,5 +1,6 @@
 import {passwordHash, normalizeUsername, validUsername, reserveAttempt, releaseAttempts} from './staff.mjs';
 import {validPassword, passwordRequirement} from '../password-policy.js';
+import {normalizeGmail, validGmail, gmailKey, gmailError, profileError} from '../customer-validation.js';
 const encoder = new TextEncoder();
 const hex = bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
 const random = () => hex(crypto.getRandomValues(new Uint8Array(32)));
@@ -9,12 +10,23 @@ const json = (value, status = 200) => Response.json(value, {status, headers: {'C
 const schemas = [
   'CREATE TABLE IF NOT EXISTS customer_users (id TEXT PRIMARY KEY,username TEXT NOT NULL UNIQUE COLLATE NOCASE,salt TEXT NOT NULL,password_hash TEXT NOT NULL,created_at INTEGER NOT NULL,cart_json TEXT NOT NULL DEFAULT \'[]\',cart_version INTEGER NOT NULL DEFAULT 0)',
   'CREATE TABLE IF NOT EXISTS customer_sessions (token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES customer_users(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL)',
-  'CREATE INDEX IF NOT EXISTS customer_sessions_expiry ON customer_sessions(expires_at)'
+  'CREATE INDEX IF NOT EXISTS customer_sessions_expiry ON customer_sessions(expires_at)',
+  'CREATE TABLE IF NOT EXISTS customer_password_resets (token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES customer_users(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL,used_at INTEGER)'
 ];
 let initializedDb, initializing;
 async function initialize(db) {
   if (initializedDb === db) return;
-  if (!initializing) initializing = db.batch(schemas.map(sql => db.prepare(sql))).then(() => {initializedDb = db;}).finally(() => initializing = null);
+  if (!initializing) initializing = (async () => {
+    await db.batch(schemas.map(sql => db.prepare(sql)));
+    const columns = ['email', 'email_key', 'full_name', 'contact_no', 'date_of_birth', 'gender'];
+    const existing = new Set((await db.prepare('PRAGMA table_info(customer_users)').all()).results.map(column => column.name));
+    for (const column of columns) if (!existing.has(column)) {
+      try {await db.prepare('ALTER TABLE customer_users ADD COLUMN ' + column + ' TEXT').run();}
+      catch (error) {const current = await db.prepare('PRAGMA table_info(customer_users)').all(); if (!current.results.some(c => c.name === column)) throw error;}
+    }
+    await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS customer_email_key ON customer_users(email_key) WHERE email_key IS NOT NULL').run();
+    initializedDb = db;
+  })().finally(() => initializing = null);
   await initializing;
 }
 async function body(request) {
@@ -45,7 +57,7 @@ async function signIn(user, env) {
     env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE expires_at<=?').bind(Math.floor(Date.now() / 1000)),
     env.STAFF_DB.prepare('INSERT INTO customer_sessions (token_hash,user_id,expires_at) VALUES (?,?,?)').bind(await digest(token), user.id, Math.floor(Date.now() / 1000) + 28800)
   ]);
-  return json({token, username: user.username, ...cartOf(user)});
+  return json({token, username: user.username, email: user.email || null, fullName: user.full_name || null, ...cartOf(user)});
 }
 export async function handleCustomer(request, env) {
   if (request.headers.get('Origin') !== env.ALLOWED_ORIGIN) return json({error: 'Use the customer website for this request.'}, 403);
@@ -55,16 +67,53 @@ export async function handleCustomer(request, env) {
   const respond = async () => {
     if (!env.STAFF_DB || !env.STAFF_PASSWORD_PEPPER || env.STAFF_PASSWORD_PEPPER.length < 32) return json({error: 'Customer accounts are temporarily unavailable. Please try again shortly.'}, 503);
     await initialize(env.STAFF_DB);
-    if (path === '/customer/status' && request.method === 'GET') return json({configured: true, customerAccounts: true});
-    if (['/customer/register', '/customer/login'].includes(path) && request.method === 'POST') {
+    if (path === '/customer/status' && request.method === 'GET') return json({configured: true, customerAccounts: true, gmailAccounts: true, resetEmailConfigured: Boolean(env.RESET_EMAIL?.send && env.RESET_EMAIL_FROM)});
+    if (path === '/customer/forgot-password' && request.method === 'POST') {
+      const data = await body(request), email = normalizeGmail(data.email);
+      if (!validGmail(email)) return json({error: gmailError(email) || 'Enter your Gmail address.'}, 400);
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      if (!await reserveAttempt(env, 'customer-reset:ip:' + await digest(ip), 5) || !await reserveAttempt(env, 'customer-reset:email:' + gmailKey(email), 3)) return json({error: 'Too many reset requests. Please try again in 15 minutes.'}, 429);
+      if (!env.RESET_EMAIL?.send || !env.RESET_EMAIL_FROM) return json({error: 'Password reset email is not connected yet. Please contact our team.'}, 503);
+      const user = await env.STAFF_DB.prepare('SELECT * FROM customer_users WHERE email_key=?').bind(gmailKey(email)).first();
+      if (user) {
+        const token = random(), now = Math.floor(Date.now() / 1000), tokenHash = await digest(token);
+        await env.STAFF_DB.prepare('DELETE FROM customer_password_resets WHERE expires_at<=? OR used_at IS NOT NULL').bind(now).run();
+        await env.STAFF_DB.prepare('INSERT INTO customer_password_resets (token_hash,user_id,expires_at) VALUES (?,?,?)').bind(tokenHash, user.id, now + 1800).run();
+        const link = new URL('/reset-password.html', env.ALLOWED_ORIGIN); link.hash = 'token=' + token;
+        try {await env.RESET_EMAIL.send({from: env.RESET_EMAIL_FROM, to: user.email, subject: 'Reset your AB Tech One Solution password', text: `A password reset was requested for your AB Tech One Solution account.\n\nChoose a new password here:\n${link.href}\n\nThis link expires in 30 minutes and can be used once. If you did not request this, you can ignore this email.`});}
+        catch {await env.STAFF_DB.prepare('DELETE FROM customer_password_resets WHERE token_hash=?').bind(tokenHash).run(); return json({error: 'Could not send the reset email. Please try again shortly.'}, 502);}
+      }
+      return json({message: 'If this Gmail is registered, a password reset link will be sent to it. Please check your inbox and spam folder.'});
+    }
+    if (path === '/customer/reset-password' && request.method === 'POST') {
+      const data = await body(request), now = Math.floor(Date.now() / 1000);
+      if (!/^[a-f0-9]{64}$/.test(data.token || '') || !validPassword(data.password) || data.password !== data.confirmPassword) return json({error: 'Check the reset link and enter matching passwords. ' + passwordRequirement}, 400);
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      if (!await reserveAttempt(env, 'customer-reset-complete:ip:' + await digest(ip), 10)) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
+      const tokenHash = await digest(data.token);
+      const reset = await env.STAFF_DB.prepare('SELECT * FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>?').bind(tokenHash, now).first();
+      if (!reset) return json({error: 'This reset link is invalid or expired. Request a new one.'}, 400);
+      const salt = random(), hash = await passwordHash(data.password, salt, 'customer:' + env.STAFF_PASSWORD_PEPPER);
+      const results = await env.STAFF_DB.batch([
+        env.STAFF_DB.prepare('UPDATE customer_users SET salt=?,password_hash=? WHERE id=? AND EXISTS (SELECT 1 FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>?)').bind(salt, hash, reset.user_id, tokenHash, now),
+        env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE user_id=? AND EXISTS (SELECT 1 FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>?)').bind(reset.user_id, tokenHash, now),
+        env.STAFF_DB.prepare('UPDATE customer_password_resets SET used_at=? WHERE user_id=? AND used_at IS NULL AND EXISTS (SELECT 1 FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>?)').bind(now, reset.user_id, tokenHash, now)
+      ]);
+      if (!results[0].meta.changes) return json({error: 'This reset link has already been used. Request a new one.'}, 400);
+      return json({message: 'Password reset successfully. Log in with your Gmail and new password.'});
+    }
+    if (['/customer/register', '/customer/login', '/customer/link-account'].includes(path) && request.method === 'POST') {
+      const linking = path.endsWith('/link-account');
       const registering = path.endsWith('/register'), scope = registering ? 'customer-register' : 'customer-login';
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       const ipAttempt = await reserveAttempt(env, scope + ':ip:' + await digest(ip), 20);
       if (!ipAttempt) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
-      const data = await body(request), username = normalizeUsername(data.username);
-      if (!validUsername(username)) return json({error: 'Choose a username with 3–24 letters, numbers or underscores.'}, 400);
+      const data = await body(request), email = normalizeGmail(data.email), username = normalizeUsername(data.username);
+      if (!validGmail(email)) return json({error: gmailError(email) || 'Enter your Gmail address.'}, 400);
+      if ((registering || linking) && profileError(data)) return json({error: profileError(data)}, 400);
+      if (linking && !validUsername(username)) return json({error: 'Enter your existing username.'}, 400);
       if (typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 128) return json({error: 'Password must contain 8–128 characters.'}, 400);
-      const userAttempt = await reserveAttempt(env, scope + ':user:' + username, 10);
+      const userAttempt = await reserveAttempt(env, scope + ':user:' + (linking ? username : gmailKey(email)), 10);
       if (!userAttempt) return json({error: 'Too many attempts. Please try again in 15 minutes.'}, 429);
       let authenticated = false;
       try {
@@ -73,20 +122,29 @@ export async function handleCustomer(request, env) {
           if (data.password !== data.confirmPassword) return json({error: 'The passwords do not match.'}, 400);
           const salt = random(), hash = await passwordHash(data.password, salt, 'customer:' + env.STAFF_PASSWORD_PEPPER);
           const id = crypto.randomUUID();
-          const result = await env.STAFF_DB.prepare('INSERT INTO customer_users (id,username,salt,password_hash,created_at) VALUES (?,?,?,?,?) ON CONFLICT(username) DO NOTHING').bind(id, username, salt, hash, Date.now()).run();
-          if (!result.meta.changes) return json({error: 'That username is already taken. Choose another username.'}, 409);
+          const result = await env.STAFF_DB.prepare('INSERT INTO customer_users (id,username,salt,password_hash,created_at,email,email_key,full_name,contact_no,date_of_birth,gender) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING').bind(id, gmailKey(email), salt, hash, Date.now(), email, gmailKey(email), data.fullName.trim(), data.contactNo, data.dateOfBirth, data.gender).run();
+          if (!result.meta.changes) return json({error: 'This Gmail already has an account. Please log in or reset your password.'}, 409);
           authenticated = true;
-          return signIn({id, username, cart_json: '[]', cart_version: 0}, env);
+          return signIn({id, username: gmailKey(email), email, full_name: data.fullName.trim(), cart_json: '[]', cart_version: 0}, env);
         }
-        const user = await env.STAFF_DB.prepare('SELECT * FROM customer_users WHERE username=?').bind(username).first();
+        const user = linking ? await env.STAFF_DB.prepare('SELECT * FROM customer_users WHERE username=?').bind(username).first() : await env.STAFF_DB.prepare('SELECT * FROM customer_users WHERE email_key=?').bind(gmailKey(email)).first();
         const hash = await passwordHash(data.password, user?.salt || '00'.repeat(32), 'customer:' + env.STAFF_PASSWORD_PEPPER);
-        if (!user || !equal(hash, user.password_hash)) return json({error: 'Username or password is incorrect.'}, 401);
+        if (!user || !equal(hash, user.password_hash)) return json({error: linking ? 'Existing username or password is incorrect.' : 'Gmail or password is incorrect.'}, 401);
+        if (linking) {
+          if (user.email_key) return json({error: 'This account already uses Gmail. Please use the Login tab.'}, 409);
+          if (await env.STAFF_DB.prepare('SELECT id FROM customer_users WHERE email_key=?').bind(gmailKey(email)).first()) return json({error: 'This Gmail is already linked to an account.'}, 409);
+          try {
+            const update = await env.STAFF_DB.prepare('UPDATE customer_users SET email=?,email_key=?,full_name=?,contact_no=?,date_of_birth=?,gender=? WHERE id=? AND email_key IS NULL').bind(email, gmailKey(email), data.fullName.trim(), data.contactNo, data.dateOfBirth, data.gender, user.id).run();
+            if (!update.meta.changes) return json({error: 'This account was updated. Please log in with Gmail.'}, 409);
+          } catch {return json({error: 'This Gmail is already linked to an account.'}, 409);}
+          user.email = email; user.full_name = data.fullName.trim();
+        }
         authenticated = true; return signIn(user, env);
       } finally {if (authenticated && !registering) await releaseAttempts(env, [ipAttempt, userAttempt]);}
     }
     const user = await userFor(request, env);
     if (!user) return json({error: 'Please log in to use your cart.'}, 401);
-    if (path === '/customer/me' && request.method === 'GET') return json({username: user.username, ...cartOf(user)});
+    if (path === '/customer/me' && request.method === 'GET') return json({username: user.username, email: user.email || null, fullName: user.full_name || null, ...cartOf(user)});
     if (path === '/customer/logout' && request.method === 'POST') {
       await env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE token_hash=?').bind(await digest(request.headers.get('Authorization').slice(7))).run();
       return json({message: 'Logged out.'});
