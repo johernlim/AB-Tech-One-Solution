@@ -135,14 +135,14 @@ $('customer-address-form').addEventListener('submit', async event => {
   event.preventDefault(); if (busy || !customer) return;
   const input = event.currentTarget.elements.shippingAddress;
   const error = shippingAddressError(input.value, customer.shippingAddress);
-  if (error) {input.setCustomValidity(error); input.reportValidity(); message(error, true); return;}
+  if (error) {input.setCustomValidity(error); message(''); input.reportValidity(); return;}
   const owner = customer.token, address = normalizeShippingAddress(input.value);
   busy = true; modal.querySelectorAll('button').forEach(button => button.disabled = true);
   message('Saving your shipping address…');
   try {
     const result = await send('profile', {method: 'PUT', body: JSON.stringify({shippingAddress: address})});
     if (customer?.token === owner) {customer = {...customer, ...result}; renderProfile(); message(result.message);}
-  } catch (error) {message(error.message || 'Could not save your address. Please try again.', true); if (error.status === 400) {input.setCustomValidity(error.message); input.reportValidity();}}
+  } catch (error) {if (error.status === 400) {message(''); input.setCustomValidity(error.message); input.reportValidity();} else message(error.message || 'Could not save your address. Please try again.', true);}
   finally {busy = false; modal.querySelectorAll('button').forEach(button => button.disabled = false);}
 });
 $('customer-logout').addEventListener('click', async () => {
