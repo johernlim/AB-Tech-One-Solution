@@ -73,7 +73,7 @@ export function validateProducts(products, category) {
     return p.category === category && ['name', 'description', 'installation', 'availability'].every(field => typeof p[field] === 'string' && p[field].trim() && p[field].length <= 5000) &&
       image(p.image) && Array.isArray(p.gallery || []) && (p.gallery || []).length <= 12 && (p.gallery || []).every(image) &&
       ['fixed', 'from', 'quote'].includes(p.price_mode) && Number.isFinite(p.price) && p.price >= 0 && p.price <= 10000000 &&
-      typeof p.published === 'boolean' && typeof p.example === 'boolean' && Array.isArray(p.specifications || []) && (p.specifications || []).length <= 50 && (p.specifications || []).every(value => typeof value === 'string' && value.length <= 500);
+      typeof p.published === 'boolean' && typeof p.example === 'boolean' && (p.new_arrival === undefined || typeof p.new_arrival === 'boolean') && Array.isArray(p.specifications || []) && (p.specifications || []).length <= 50 && (p.specifications || []).every(value => typeof value === 'string' && value.length <= 500);
   });
 }
 export async function handleStaff(request, env) {

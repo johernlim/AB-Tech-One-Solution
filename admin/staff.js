@@ -2,6 +2,17 @@ import {validPassword, passwordRequirement} from '../password-policy.js';
 const $ = id => document.getElementById(id);
 let productCategories = [], categoriesSha;
 let base, token, username, selected, products = [], sha, editing = -1, busy = false;
+const uploadedPhotoPreviews = new Map();
+function resetPhotoPreviews() {for (const url of uploadedPhotoPreviews.values()) URL.revokeObjectURL(url); uploadedPhotoPreviews.clear();}
+function renderProductPhotos() {
+  const form = $('staff-product-form');
+  const main = $('staff-main-preview');
+  main.hidden = !form.elements.image.value.trim();
+  if (!main.hidden) main.src = uploadedPhotoPreviews.get(form.elements.image.value.trim()) || imageURL(form.elements.image.value.trim());
+  $('staff-gallery-preview').replaceChildren(...form.elements.gallery.value.split('\n').map(path => path.trim()).filter(Boolean).map(path => {
+    const image = node('img'); image.src = uploadedPhotoPreviews.get(path) || imageURL(path); image.alt = 'Extra product photo'; return image;
+  }));
+}
 function notice(id, text, error = false) { $(id).textContent = text; $(id).dataset.error = String(error); }
 async function api(path, options = {}) {
   if (!base) {
@@ -34,7 +45,7 @@ function render() {
     const image = node('img'); image.src = imageURL(product.image); image.alt = product.name;
     const copy = node('div', undefined, 'staff-product-copy');
     const cost = product.price_mode === 'quote' ? 'Request a quote' : (product.price_mode === 'from' ? 'From ' : '') + new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'}).format(product.price);
-    copy.append(node('h3', product.name), node('p', cost), node('p', (product.published ? 'Visible' : 'Hidden') + (product.example ? ' · Example product' : '')));
+    copy.append(node('h3', product.name), node('p', cost), node('p', (product.published ? 'Visible' : 'Hidden') + ((product.new_arrival ?? product.example) ? ' · New Arrival' : '')));
     const actions = node('div', undefined, 'staff-product-actions');
     const edit = node('button', 'Edit product'); edit.type = 'button'; edit.addEventListener('click', () => editProduct(index));
     const remove = node('button', 'Delete'); remove.type = 'button'; remove.addEventListener('click', async () => {
@@ -93,9 +104,12 @@ function editProduct(index) {
   editing = index;
   const product = products[index] || {id: '', name: '', description: '', image: '', gallery: [], price_mode: 'fixed', price: 0, specifications: [], installation: 'Installation quoted separately.', availability: 'Contact us to confirm availability', published: false, example: true};
   const form = $('staff-product-form'); form.reset();
+  resetPhotoPreviews();
   for (const field of ['id', 'name', 'description', 'image', 'price_mode', 'price', 'installation', 'availability']) form.elements[field].value = product[field];
   for (const field of ['specifications', 'gallery']) form.elements[field].value = (product[field] || []).join('\n');
-  for (const field of ['published', 'example']) form.elements[field].checked = product[field];
+  form.elements.published.checked = product.published;
+  form.elements.new_arrival.checked = product.new_arrival ?? (products[index] ? product.example : false);
+  renderProductPhotos();
   $('staff-product-title').textContent = index < 0 ? 'Add product' : 'Edit product';
   $('product-category-note').textContent = selected.name + ' · This product belongs to the selected category.';
   notice('staff-product-message', ''); $('staff-product-dialog').showModal();
@@ -177,24 +191,31 @@ async function initialize() {
   $('add-staff-product').addEventListener('click', () => editProduct(-1));
   for (const id of ['close-staff-product', 'cancel-staff-product']) $(id).addEventListener('click', () => {if (!busy) $('staff-product-dialog').close();});
   $('staff-product-dialog').addEventListener('cancel', event => {if (busy) event.preventDefault();});
+  $('staff-product-dialog').addEventListener('close', resetPhotoPreviews);
+  for (const field of ['image', 'gallery']) $('staff-product-form').elements[field].addEventListener('input', renderProductPhotos);
   for (const [id, gallery] of [['staff-photo', false], ['staff-gallery', true]]) $(id).addEventListener('change', async () => {
     if (busy) return;
+    const files = [...$(id).files]; if (!files.length) return;
     busy = true; $('publish-staff-product').disabled = true; notice('staff-product-message', 'Uploading photo…');
+    $('staff-photo').disabled = $('staff-gallery').disabled = true;
     try {
       const form = $('staff-product-form');
-      for (const file of $(id).files) {
+      for (const file of files) {
         const path = await upload(file);
+        const previous = uploadedPhotoPreviews.get(path); if (previous) URL.revokeObjectURL(previous);
+        uploadedPhotoPreviews.set(path, URL.createObjectURL(file));
         if (gallery) form.elements.gallery.value = [form.elements.gallery.value.trim(), path].filter(Boolean).join('\n');
         else form.elements.image.value = path;
+        renderProductPhotos();
       }
       notice('staff-product-message', 'Photo uploaded. Save the product to display it in the catalogue.');
     } catch (error) {notice('staff-product-message', error.message, true);}
-    finally {busy = false; $('publish-staff-product').disabled = false; $(id).value = '';}
+    finally {busy = false; $('publish-staff-product').disabled = false; $('staff-photo').disabled = $('staff-gallery').disabled = false;}
   });
   $('staff-product-form').addEventListener('submit', async event => {
     event.preventDefault(); if (busy) return;
     const form = event.currentTarget, data = new FormData(form);
-    const product = {...products[editing], ...Object.fromEntries(['id', 'name', 'description', 'image', 'price_mode', 'installation', 'availability'].map(field => [field, String(data.get(field)).trim()])), price: Number(data.get('price')), category: selected.name, published: form.elements.published.checked, example: form.elements.example.checked};
+    const product = {...products[editing], ...Object.fromEntries(['id', 'name', 'description', 'image', 'price_mode', 'installation', 'availability'].map(field => [field, String(data.get(field)).trim()])), price: Number(data.get('price')), category: selected.name, published: form.elements.published.checked, example: products[editing]?.example ?? false, new_arrival: form.elements.new_arrival.checked};
     for (const field of ['specifications', 'gallery']) product[field] = String(data.get(field)).split('\n').map(value => value.trim()).filter(Boolean);
     if (products.some((existing, index) => index !== editing && existing.id === product.id)) {notice('staff-product-message', 'That product ID is already used in this category.', true); return;}
     const next = [...products]; if (editing < 0) next.push(product); else next[editing] = product;

@@ -1,6 +1,6 @@
 'use strict';
 import {loadCategories, renderCategoryCards} from './category-store.js';
-import {addToCart} from './cart.js?v=customer-1';
+import {addToCart} from './cart.js?v=new-arrivals-1';
 const productCategories = await loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];});
 renderCategoryCards(document.querySelector('.catalogue-categories'), productCategories);
 const categories = productCategories.map(category => category.name);
@@ -63,7 +63,7 @@ function showDetails(product, button) {
   document.getElementById('detail-description').textContent = product.description;
   document.getElementById('detail-installation').textContent = product.installation;
   document.getElementById('detail-availability').textContent = product.availability;
-  document.getElementById('detail-example').hidden = !product.example;
+  document.getElementById('detail-example').hidden = !(product.new_arrival ?? product.example);
   document.getElementById('detail-example-note').hidden = !product.example;
   document.getElementById('detail-specs').replaceChildren(...(product.specifications || []).map(text => element('li', '', text)));
   const image = document.getElementById('detail-image');
@@ -96,7 +96,7 @@ function card(product) {
   const img = element('img'); img.src = imagePath(product.image); img.alt = product.name + (product.example ? ' — example illustration' : '');
   img.width = 640; img.height = 440; img.loading = 'lazy';
   photo.append(img);
-  if (product.example) photo.append(element('span', 'sample-badge', 'EXAMPLE'));
+  if (product.new_arrival ?? product.example) photo.append(element('span', 'sample-badge', 'NEW ARRIVAL'));
   const copy = element('div', 'product-card-copy');
   copy.append(element('span', 'product-category', product.category));
   const heading = element('h3'); const name = element('button', 'product-title-button', product.name); name.type = 'button'; heading.append(name);

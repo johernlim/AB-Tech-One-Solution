@@ -91,7 +91,7 @@ function render() {
     if (available) {estimated ||= product.price_mode === 'from'; quotes ||= !priced; examples ||= product.example;}
     const unitPrice = !available ? 'No longer available — remove this item' : !priced ? 'Price to be quoted' : (product.price_mode === 'from' ? 'From ' : '') + money.format(cents / 100) + ' each';
     copy.append(node('p', '', unitPrice));
-    if (product?.example) copy.append(node('span', 'sample-badge', 'EXAMPLE · Illustrative price'));
+    if (product && (product.new_arrival ?? product.example)) copy.append(node('span', 'sample-badge', 'NEW ARRIVAL'));
     const controls = node('div', 'cart-quantity');
     const minus = node('button', '', '−'), plus = node('button', '', '+'), input = node('input');
     minus.type = plus.type = 'button';

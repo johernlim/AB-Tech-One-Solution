@@ -68,6 +68,8 @@ test('Existing accounts can log in and log out when invitations are missing', as
 test('Product validation rejects foreign images, duplicate IDs and wrong categories', async () => {
   const {products} = JSON.parse(await readFile(new URL('../data/categories/cctv.json', import.meta.url), 'utf8'));
   assert.equal(validateProducts(products, 'CCTV Systems'), true);
+  assert.equal(validateProducts([{...products[0], new_arrival: true}], 'CCTV Systems'), true);
+  assert.equal(validateProducts([{...products[0], new_arrival: 'yes'}], 'CCTV Systems'), false);
   assert.equal(validateProducts([], 'CCTV Systems'), true);
   assert.equal(validateProducts([products[0], products[0]], 'CCTV Systems'), false);
   assert.equal(validateProducts([{...products[0], image: 'https://evil.example/photo.svg'}], 'CCTV Systems'), false);
