@@ -22,16 +22,17 @@ test('Quantity changes cap discounts; removing all qualifiers restores normal pr
   assert.equal(pwpLine(item(2),products[2],pwpChoices([item(2)],catalogue,[offer])).total,3500);
   const hidden = new Map(catalogue);hidden.delete(keys[0]);assert.equal(pwpChoices([item(0)],hidden,[offer]).size,0);
 });
-test('Paused, expired, future, hidden and non-PWP add-ons do not discount; offers never stack',()=>{
+test('Active switch controls availability; old dates are ignored and offers never stack',()=>{
   const now=new Date('2026-10-04T12:00:00Z');
-  for(const change of [{enabled:false},{start:'2026-10-05'},{end:'2026-10-03'}]) assert.equal(pwpChoices([item(0)],catalogue,[{...offer,...change}],now).size,0);
+  assert.equal(pwpChoices([item(0)],catalogue,[{...offer,enabled:false}]).size,0);
+  for(const dates of [{start:'2026-10-05'},{end:'2026-10-03'}]) assert.equal(pwpChoices([item(0)],catalogue,[{...offer,...dates}]).size,2);
   const choices=pwpChoices([item(0)],catalogue,[offer,{...offer,id:'second',addons:[{key:keys[2],price:18}],limit:2}],now);
   assert.equal(choices.get(keys[2]).price,18);assert.equal(choices.get(keys[2]).limit,2);
   assert.equal(pwpChoices([item(0)],catalogue,[{...offer,addons:[{key:keys[1],price:10}]}]).size,0);
 });
-test('Publishing validates multi-select references, category, prices, dates and duplicates',()=>{
+test('Publishing validates multi-select references, category, prices, limits and duplicates',()=>{
   assert.equal(validateOffers([offer],products),true);
-  for(const change of [{qualifiers:[]},{qualifiers:[keys[2]]},{qualifiers:[keys[0],keys[0]]},{addons:[]},{addons:[{key:keys[0],price:20}]},{addons:[{key:keys[2],price:35}]},{addons:[{key:keys[2],price:0}]},{addons:[{key:keys[2],price:1.001}]},{start:'2026-02-30'},{start:'2026-11-01',end:'2026-10-01'},{limit:0}]) assert.equal(validateOffers([{...offer,...change}],products),false,JSON.stringify(change));
+  for(const change of [{qualifiers:[]},{qualifiers:[keys[2]]},{qualifiers:[keys[0],keys[0]]},{addons:[]},{addons:[{key:keys[0],price:20}]},{addons:[{key:keys[2],price:35}]},{addons:[{key:keys[2],price:0}]},{addons:[{key:keys[2],price:1.001}]},{limit:0}]) assert.equal(validateOffers([{...offer,...change}],products),false,JSON.stringify(change));
   assert.equal(validateOffers([offer,offer],products),false);
   assert.equal(validateOffers([offer],products.filter(p=>p.id!=='card')),false);
 });

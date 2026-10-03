@@ -1,5 +1,5 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
-import {setupPwpAdmin} from './pwp-admin.js?v=pwp-1';
+import {setupPwpAdmin} from './pwp-admin.js?v=pwp-no-dates-1';
 const $ = id => document.getElementById(id);
 let productCategories = [], categoriesSha;
 let base, token, username, selected, products = [], sha, editing = -1, busy = false;

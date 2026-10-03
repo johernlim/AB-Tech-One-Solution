@@ -1,7 +1,7 @@
 'use strict';
 import {loadCategories, renderCategoryCards} from './category-store.js';
-import {addToCart} from './cart.js?v=pwp-1';
-import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-1';
+import {addToCart} from './cart.js?v=pwp-no-dates-1';
+import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-no-dates-1';
 const pwpOffers = await loadPwpOffers().catch(() => []);
 const hasPwp = product => pwpOffers.some(offer => activeOffer(offer) && offer.qualifiers.includes(productKey(product)));
 const productCategories = await loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];});

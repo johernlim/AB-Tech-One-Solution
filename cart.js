@@ -1,6 +1,6 @@
 import {setupCheckout} from './checkout.js?v=checkout-2';
 import {loadCategories} from './category-store.js';
-import {loadPwpOffers, pwpChoices, pwpLine, PWP_CATEGORY, productKey} from './pwp.js?v=pwp-1';
+import {loadPwpOffers, pwpChoices, pwpLine, PWP_CATEGORY, productKey} from './pwp.js?v=pwp-no-dates-1';
 import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=checkout-2';
 
 const root = new URL('.', import.meta.url);

@@ -26,14 +26,13 @@ export async function pwpCatalogue(env, ref = 'main') {
   }));
   return groups.flat();
 }
-const validDate = value => value === '' || typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 export function validateOffers(offers, products) {
   if (!Array.isArray(offers) || offers.length > 50) return false;
   const catalogue = new Map(products.map(p => [productKey(p), p])), ids = new Set();
   return offers.every(o => {
     if (!o || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(o.id || '') || o.id.length > 80 || ids.has(o.id)) return false;
     ids.add(o.id);
-    if (typeof o.name !== 'string' || !o.name.trim() || o.name.length > 100 || typeof o.enabled !== 'boolean' || !Number.isInteger(o.limit) || o.limit < 1 || o.limit > 99 || !validDate(o.start) || !validDate(o.end) || o.start && o.end && o.end < o.start) return false;
+    if (typeof o.name !== 'string' || !o.name.trim() || o.name.length > 100 || typeof o.enabled !== 'boolean' || !Number.isInteger(o.limit) || o.limit < 1 || o.limit > 99) return false;
     if (!Array.isArray(o.qualifiers) || !o.qualifiers.length || o.qualifiers.length > 100 || new Set(o.qualifiers).size !== o.qualifiers.length || !o.qualifiers.every(key => catalogue.has(key) && catalogue.get(key).category !== PWP_CATEGORY)) return false;
     if (!Array.isArray(o.addons) || !o.addons.length || o.addons.length > 100 || new Set(o.addons.map(a => a?.key)).size !== o.addons.length) return false;
     return o.addons.every(a => {
@@ -50,8 +49,8 @@ export async function publishPwp(env, user, data) {
   if (!headResponse.ok) return json({error: 'Could not check current products.'}, 502);
   const head = (await headResponse.json()).object.sha;
   const products = await pwpCatalogue(env, head);
-  if (!validateOffers(data.offers, products)) return json({error: 'Choose visible qualifying products and add-ons from PWP Products. Each PWP price must be lower than its fixed normal price. Check dates, limits and unique offer IDs.'}, 400);
-  const offers = data.offers.map(({id, name, qualifiers, addons, limit, start, end, enabled}) => ({id, name: name.trim(), qualifiers, addons: addons.map(({key, price}) => ({key, price})), limit, start, end, enabled}));
+  if (!validateOffers(data.offers, products)) return json({error: 'Choose visible qualifying products and add-ons from PWP Products. Each PWP price must be lower than its fixed normal price. Check limits and unique offer IDs.'}, 400);
+  const offers = data.offers.map(({id, name, qualifiers, addons, limit, enabled}) => ({id, name: name.trim(), qualifiers, addons: addons.map(({key, price}) => ({key, price})), limit, start: '', end: '', enabled}));
   const response = await github(env, path, {method: 'PUT', body: JSON.stringify({branch: 'main', sha: data.sha, message: 'Update PWP offers by ' + user.username, content: encode(JSON.stringify({offers}, null, 2) + '\n')})});
   if ([409, 422].includes(response.status)) return json({error: 'PWP offers changed. Reload before publishing.'}, 409);
   if (!response.ok) return json({error: 'Could not publish PWP offers. Please try again.'}, 502);

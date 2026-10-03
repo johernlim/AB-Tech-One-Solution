@@ -2,14 +2,13 @@
 export const PWP_CATEGORY = 'PWP Products';
 export const productKey = product => product.category + ':' + product.id;
 export const cents = value => Math.round(Number(value) * 100);
-export function activeOffer(offer, now = new Date()) {
-  const today = now.toISOString().slice(0, 10);
-  return offer.enabled === true && (!offer.start || offer.start <= today) && (!offer.end || offer.end >= today);
+export function activeOffer(offer) {
+  return offer.enabled === true;
 }
-export function pwpChoices(items, catalogue, offers, now = new Date()) {
+export function pwpChoices(items, catalogue, offers) {
   const choices = new Map();
   for (const offer of offers) {
-    if (!activeOffer(offer, now)) continue;
+    if (!activeOffer(offer)) continue;
     const qualifyingQuantity = items.reduce((sum, item) => sum + (offer.qualifiers.includes(productKey(item)) && catalogue.has(productKey(item)) && item.category !== PWP_CATEGORY ? item.quantity : 0), 0);
     if (!qualifyingQuantity) continue;
     for (const addon of offer.addons) {

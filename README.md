@@ -2,9 +2,9 @@
 
 ## Purchase with Purchase (PWP)
 
-Staff can manage products in the dedicated **PWP Products** category, then open **PWP offers** to add, edit or delete offers. Select one or more visible qualifying products and one or more visible fixed-price PWP add-ons. Each add-on has its own discounted price. Optional dates use UTC; the active switch pauses an offer. Saving publishes `data/pwp-offers.json` through the authenticated staff Worker and GitHub, with conflict protection.
+Staff can manage products in the dedicated **PWP Products** category, then open **PWP offers** to add, edit or delete offers. Select one or more visible qualifying products and one or more visible fixed-price PWP add-ons. Each add-on has its own discounted price. The active switch controls availability; date scheduling is removed. Saving publishes `data/pwp-offers.json` through the authenticated staff Worker and GitHub, with conflict protection.
 
-Any selected qualifying product unlocks the optional add-ons in the customer cart. The per-item limit applies to each add-on separately and scales with the combined quantity of qualifying items. Additional quantities use the normal price. Removing all qualifying products, hiding a product, pausing or expiring an offer restores normal pricing. The cheapest eligible offer applies without stacking. Checkout uses the cart's discounted total and remains UI-only pending payment integration; future payment/order creation must independently verify current products and offers on the server.
+Any selected qualifying product unlocks the optional add-ons in the customer cart. The per-item limit applies to each add-on separately and scales with the combined quantity of qualifying items. Additional quantities use the normal price. Removing all qualifying products, hiding a product or pausing an offer restores normal pricing. The cheapest eligible offer applies without stacking. Checkout uses the cart's discounted total and remains UI-only pending payment integration; future payment/order creation must independently verify current products and offers on the server.
 
 The PWP category starts empty; no sample discounts are activated. Add real products and publish an offer before customer discounts appear. Run `node --test tests/pwp.test.mjs` and `node tests/pwp-browser.cjs` (with the preview on port 8080) to test PWP.
 
