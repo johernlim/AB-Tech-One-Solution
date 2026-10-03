@@ -24,6 +24,6 @@ export function profileError(data) {
   if (typeof data.fullName !== 'string' || !data.fullName.trim() || data.fullName.trim().length > 120 || /[\x00-\x1f\x7f]/.test(data.fullName)) return 'Enter your full name (up to 120 characters).';
   if (!validContact(data.contactNo)) return contactError;
   if (!validBirthDate(data.dateOfBirth)) return 'Choose a valid date of birth that is not in the future.';
-  if (!['male', 'female', 'other', 'prefer_not_to_say'].includes(data.gender)) return 'Please choose your gender option.';
+  if (!['male', 'female', 'prefer_not_to_say'].includes(data.gender)) return 'Please choose your gender option.';
   return '';
 }

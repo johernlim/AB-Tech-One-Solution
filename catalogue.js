@@ -1,6 +1,6 @@
 'use strict';
 import {loadCategories, renderCategoryCards} from './category-store.js';
-import {addToCart} from './cart.js?v=firebase-2';
+import {addToCart} from './cart.js?v=profile-cart-1';
 const productCategories = await loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];});
 renderCategoryCards(document.querySelector('.catalogue-categories'), productCategories);
 const categories = productCategories.map(category => category.name);

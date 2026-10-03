@@ -72,7 +72,7 @@ test('Gmail typos, dot aliases, mobile lengths and invalid profile details are v
   for (const value of ['0111234567', '01212345678', '0211234567', '01234567a9', '+60121234567']) assert.equal(validContact(value), false);
   for (const value of ['2999-01-01', '2025-02-29', '1995-13-01', '1899-01-01']) assert.equal(validBirthDate(value), false);
   assert.equal(validBirthDate('2000-02-29'), true);
-  for (const patch of [{email: 'person123@gmial.com'}, {fullName: ''}, {contactNo: '01212345678'}, {dateOfBirth: '2999-01-01'}, {gender: ''}]) assert.equal((await handleCustomer(request('register', 'POST', {...account, ...patch}), env)).status, 400);
+  for (const patch of [{email: 'person123@gmial.com'}, {fullName: ''}, {contactNo: '01212345678'}, {dateOfBirth: '2999-01-01'}, {gender: ''}, {gender: 'other'}]) assert.equal((await handleCustomer(request('register', 'POST', {...account, ...patch}), env)).status, 400);
   assert.equal((await handleCustomer(request('register', 'POST', {...account, email: 'customerone@gmail.com'}), env)).status, 409);
   assert.equal((await handleCustomer(request('login', 'POST', {...account, email: 'CUSTOMERONE@GMAIL.COM'}), env)).status, 200);
 });
@@ -204,4 +204,24 @@ test('Firebase handles customer passwords and resets while profiles, private car
     assert.equal((await handleCustomer(request('me', 'GET', undefined, legacyResult.token), firebaseEnv)).status, 401);
     const status = await (await handleCustomer(request('status'), firebaseEnv)).json(); assert.equal(status.firebaseAuthentication, true); assert.equal(status.resetEmailConfigured, true);
   } finally {globalThis.fetch = originalFetch;}
+});
+
+
+test('Customer profile details and shipping addresses persist privately without changing cart or staff data', async () => {
+  const profileEmail = 'address.first@gmail.com';
+  const first = await register(profileEmail);
+  assert.equal(first.contactNo, account.contactNo); assert.equal(first.dateOfBirth, account.dateOfBirth); assert.equal(first.gender, account.gender);
+  const second = await register('address.second@gmail.com');
+  assert.equal((await handleCustomer(request('profile', 'PUT', {shippingAddress: 'Test'}), env)).status, 401);
+  for (const shippingAddress of [null, 'a'.repeat(1001), 'bad\u0000address']) assert.equal((await handleCustomer(request('profile', 'PUT', {shippingAddress}, first.token), env)).status, 400);
+  const before = sqlite.prepare('SELECT cart_json,cart_version FROM customer_users WHERE email=?').get(profileEmail);
+  const address = '12 Jalan Test\n34000 Taiping, Perak';
+  const result = await handleCustomer(request('profile', 'PUT', {shippingAddress: '  '+address+'  ', fullName: 'Changed'}, first.token), env);
+  assert.equal(result.status, 200); assert.equal((await result.json()).shippingAddress, address);
+  const profile = await (await handleCustomer(request('me', 'GET', undefined, first.token), env)).json();
+  assert.equal(profile.shippingAddress, address); assert.equal(profile.fullName, account.fullName);
+  assert.equal((await (await handleCustomer(request('me', 'GET', undefined, second.token), env)).json()).shippingAddress, '');
+  assert.deepEqual(sqlite.prepare('SELECT cart_json,cart_version FROM customer_users WHERE email=?').get(profileEmail), before);
+  await handleCustomer(request('profile', 'PUT', {shippingAddress: ''}, first.token), env);
+  assert.equal((await (await handleCustomer(request('me', 'GET', undefined, first.token), env)).json()).shippingAddress, '');
 });

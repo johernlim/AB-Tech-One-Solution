@@ -1,15 +1,19 @@
 import {loadCategories} from './category-store.js';
-import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=firebase-2';
+import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=profile-cart-1';
 
 const root = new URL('.', import.meta.url);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'});
 const keyOf = product => product.category + ':' + product.id;
 let items = [], version = 0, catalogue, pending, trigger, saving = false, mutation = Promise.resolve();
-const cart = document.createElement('dialog');
-cart.className = 'cart-dialog';
+const pageCart = document.querySelector('[data-cart-page]');
+const cart = pageCart || document.createElement('dialog');
+const visible = () => Boolean(pageCart || cart.open);
+cart.className = pageCart ? 'cart-dialog cart-page-panel' : 'cart-dialog';
 cart.setAttribute('aria-labelledby', 'cart-title');
-cart.innerHTML = `<div class="cart-heading"><div><span class="eyebrow">Your selection</span><h2 id="cart-title">Shopping cart</h2></div><button type="button" class="cart-close" aria-label="Close cart">×</button></div><p class="cart-status" role="status"></p><div class="cart-items"></div><div class="cart-summary"><div><span id="cart-total-label">Total</span><strong id="cart-total">RM 0.00</strong></div><p class="cart-price-note"></p><p>Product prices only. Delivery and installation are confirmed separately.</p></div><div class="cart-actions"><button type="button" class="button secondary cart-continue">Continue shopping</button><button type="button" class="cart-clear">Clear cart</button></div>`;
-document.body.append(cart);
+cart.innerHTML = `<div class="cart-heading"><div><span class="eyebrow">Your selection</span><h2 id="cart-title">Shopping cart</h2></div><button type="button" class="cart-close" aria-label="Close cart">×</button></div><p class="cart-status" role="status"></p><div class="cart-items"></div><div class="cart-summary"><div><span id="cart-total-label">Total</span><strong id="cart-total">RM 0.00</strong></div><p class="cart-price-note"></p><p>Product prices only. Delivery and installation are confirmed separately.</p></div><div class="cart-actions"><button type="button" class="button secondary cart-continue">Continue shopping</button><a class="button cart-view" href="cart.html">View cart</a><button type="button" class="cart-clear">Clear cart</button></div>`;
+if (pageCart) {const heading = cart.querySelector('#cart-title'), title = document.createElement('h1'); title.id = heading.id; title.textContent = heading.textContent; heading.replaceWith(title);}
+if (!pageCart) document.body.append(cart);
+else {cart.querySelector('.cart-close').hidden = true; cart.querySelector('.cart-view').hidden = true;}
 const toast = document.createElement('p');
 toast.className = 'cart-toast'; toast.setAttribute('role', 'status');
 document.body.append(toast);
@@ -19,7 +23,7 @@ function say(text) {
   toast.textContent = text; toast.classList.add('visible');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('visible'), 3500);
 }
-function receiveCart(data) {items = data?.items || []; version = data?.version || 0; updateCount(); if (cart.open && catalogue) render();}
+function receiveCart(data) {items = data?.items || []; version = data?.version || 0; updateCount(); if (visible() && catalogue) render();}
 window.addEventListener('customer-change', event => receiveCart(event.detail));
 const ready = customerReady.then(receiveCart);
 async function refreshCart() {if (getCustomer()) receiveCart(await customerRequest('cart')); else receiveCart(null);}
@@ -37,7 +41,7 @@ function save(transform) {
     } catch (error) {
       if (error.status === 409) {try {await refreshCart();} catch {}}
       say(error.message || 'Unable to save your cart. Please try again.'); return false;
-    } finally {saving = false; if (cart.open && catalogue) render();}
+    } finally {saving = false; if (visible() && catalogue) render();}
   });
   mutation = operation.catch(() => {}); return operation;
 }
@@ -115,7 +119,7 @@ function render() {
     end.append(node('strong', '', !available ? 'Unavailable' : !priced ? 'Quote needed' : (product.price_mode === 'from' ? 'From ' : '') + money.format(cents * item.quantity / 100)));
     const remove = node('button', 'cart-remove', 'Remove'); remove.type = 'button';
     remove.setAttribute('aria-label', 'Remove ' + (product?.name || item.id));
-    remove.addEventListener('click', async () => {if (saving) return; await save(current => current.filter(i => keyOf(i) !== keyOf(item))); cart.querySelector('.cart-close').focus();});
+    remove.addEventListener('click', async () => {if (saving) return; await save(current => current.filter(i => keyOf(i) !== keyOf(item))); cart.querySelector(pageCart ? '.cart-continue' : '.cart-close').focus();});
     end.append(remove); row.append(copy, end); container.append(row);
   });
   cart.querySelector('#cart-total-label').textContent = estimated || quotes || examples ? 'Estimated total' : 'Total';
@@ -140,14 +144,16 @@ export async function addToCart(product) {
     if (saved) say(product.name + ' added to cart.');
   } catch (error) {say(error.message || 'Unable to add this product. Please try again.');}
 }
-document.querySelectorAll('[data-cart-open]').forEach(button => button.addEventListener('click', async () => {
-  trigger = button; cart.showModal();
+async function openCart(button) {
+  trigger = button; if (!pageCart && !cart.open) cart.showModal();
   cart.querySelector('.cart-status').textContent = 'Loading your cart…';
   cart.querySelector('.cart-items').replaceChildren(); cart.querySelector('.cart-summary').hidden = true; cart.querySelector('.cart-clear').hidden = true;
   try {await ready; await mutation; await refreshCart(); catalogue = null; await loadCatalogue(); cart.querySelector('.cart-status').textContent = ''; render(); cart.querySelector('.cart-summary').hidden = false;}
-  catch {cart.querySelector('.cart-status').textContent = 'Unable to load your cart. Close it and try again. Your saved items are kept.';}
-}));
-cart.querySelectorAll('.cart-close, .cart-continue').forEach(button => button.addEventListener('click', () => cart.close()));
-cart.querySelector('.cart-clear').addEventListener('click', async () => {if (saving) return; await save(() => []); cart.querySelector('.cart-close').focus();});
+  catch {cart.querySelector('.cart-status').textContent = pageCart ? 'Unable to load your cart. Refresh this page to try again. Your saved items are kept.' : 'Unable to load your cart. Close it and try again. Your saved items are kept.';}
+}
+document.querySelectorAll('[data-cart-open]').forEach(button => button.addEventListener('click', () => openCart(button)));
+if (pageCart) openCart();
+cart.querySelectorAll('.cart-close, .cart-continue').forEach(button => button.addEventListener('click', () => {if (pageCart) location.href = new URL('catalogue.html?view=all', root).href; else cart.close();}));
+cart.querySelector('.cart-clear').addEventListener('click', async () => {if (saving) return; await save(() => []); cart.querySelector(pageCart ? '.cart-continue' : '.cart-close').focus();});
 cart.addEventListener('close', () => trigger?.focus());
 updateCount();

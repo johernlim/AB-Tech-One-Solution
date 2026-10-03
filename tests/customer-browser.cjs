@@ -13,11 +13,12 @@ const assert = require('node:assert/strict');
     let status = 200, data;
     if (['register', 'login'].includes(path)) {
       const fields = req.postDataJSON();
-      if (path === 'register') users.set(fields.email, {username: fields.email, email: fields.email, fullName: fields.fullName, items: [], version: 0});
+      if (path === 'register') users.set(fields.email, {username: fields.email, email: fields.email, fullName: fields.fullName, contactNo: fields.contactNo, dateOfBirth: fields.dateOfBirth, gender: fields.gender, shippingAddress: '', items: [], version: 0});
       if (fields.password === 'Wrong123!') {status = 401; data = {error: 'Gmail or password is incorrect.'};}
       else {const result = users.get(fields.email); const nextToken = (++sequence).toString(16).padStart(64, '0'); tokens.set(nextToken, fields.email); data = {...result, token: nextToken};}
     } else if (!user) {status = 401; data = {error: 'Please log in to use your cart.'};}
     else if (path === 'logout') {tokens.delete(token); data = {message: 'Logged out.'};}
+    else if (path === 'profile' && req.method() === 'PUT') {user.shippingAddress = req.postDataJSON().shippingAddress.trim(); data = {...user, message: 'Shipping address saved.'};}
     else if (req.method() === 'PUT') {
       writes++;
       if (failSave) {status = 500; data = {error: 'Unable to save your cart. Please try again.'};}
@@ -30,7 +31,7 @@ const assert = require('node:assert/strict');
     if (register) await page.locator('#customer-register-tab').click(); else await page.locator('#customer-login-tab').click();
     const form = page.locator(register ? '#customer-register-form' : '#customer-login-form');
     await form.locator('[name="email"]').fill(email); await form.locator('[name="password"]').fill(password);
-    if (register) {await form.locator('[name="fullName"]').fill('Customer Test'); await form.locator('[name="contactNo"]').fill('01112345678'); await form.locator('[name="dateOfBirth"]').fill('1995-01-01'); await form.locator('[name="gender"]').selectOption('female');}
+    if (register) {await form.locator('[name="fullName"]').fill('Customer Test'); await form.locator('[name="contactNo"]').fill('01112345678'); await form.locator('[name="birthYear"]').selectOption('1995'); await form.locator('[name="birthMonth"]').selectOption('1'); await form.locator('[name="birthDay"]').selectOption('1'); await form.locator('[name="gender"]').selectOption('female');}
     if (register) await form.locator('[name="confirmPassword"]').fill(password);
     await form.locator('.customer-submit').click();
   }
@@ -49,13 +50,35 @@ const assert = require('node:assert/strict');
     await page.locator('.product-add-cart').first().click();
     await submit('customer.one@gmail.com', true); await count(1);
     assert.equal(writes, 1); assert.equal(users.get('customer.one@gmail.com').items[0].id, 'cctv-turret');
+    await page.locator('[data-customer-account]').click();
+    await page.getByText('01112345678', {exact: true}).waitFor();
+    assert.equal(await page.locator('.customer-details').getByText('1995-01-01', {exact: true}).count(), 1);
+    await page.locator('[name=shippingAddress]').fill('12 Jalan Test\n34000 Taiping, Perak');
+    await page.getByRole('button', {name: 'Save shipping address', exact: true}).click();
+    await page.getByText('Shipping address saved.', {exact: true}).waitFor(); await count(1);
+    await page.screenshot({path: '.preview/customer-account-address.png'});
+    await page.getByRole('button', {name: 'Close account window', exact: true}).click();
+    await page.locator('[data-cart-open]').click(); await page.locator('.cart-item').waitFor();
+    await page.getByRole('link', {name: 'View cart', exact: true}).click();
+    await page.locator('[data-cart-page] .cart-item').waitFor(); await count(1);
+    await page.locator('.cart-quantity button').last().click(); await count(2);
+    await page.waitForFunction(() => document.querySelector('#cart-total').textContent.includes('1,332.00'));
+    await page.locator('.cart-quantity button').first().click(); await count(1);
+    await page.reload(); await page.locator('[data-cart-page] .cart-item').waitFor(); await count(1);
+    await page.setViewportSize({width: 390, height: 844});
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({path: '.preview/full-cart-mobile.png'});
+    await page.setViewportSize({width: 1440, height: 1000});
+    await page.locator('[data-customer-account]').click();
+    assert.equal(await page.locator('[name=shippingAddress]').inputValue(), '12 Jalan Test\n34000 Taiping, Perak');
+    await page.getByRole('button', {name: 'Close account window', exact: true}).click();
     await page.goto('http://localhost:8080/index.html'); await count(1);
     await logout();
     await page.goto('http://localhost:8080/catalogue.html?category=CCTV%20Systems'); await page.locator('.product-card').nth(1).waitFor();
     await page.getByRole('button', {name: 'View 4-Camera CCTV Starter Package', exact: true}).click(); await page.locator('#detail-add-cart').click();
     await submit('customer.one@gmail.com', false, 'Wrong123!'); await page.getByText('Gmail or password is incorrect.', {exact: true}).waitFor();
-    assert.equal(writes, 1);
-    await submit('customer.one@gmail.com'); await count(2); assert.equal(writes, 2);
+    assert.equal(writes, 3);
+    await submit('customer.one@gmail.com'); await count(2); assert.equal(writes, 4);
     await page.getByRole('button', {name: 'Close product details', exact: true}).click(); await logout();
     await page.locator('.product-add-cart').first().click(); await submit('customer.two@gmail.com', true); await count(1);
     assert.equal(users.get('customer.two@gmail.com').items.length, 1); assert.equal(users.get('customer.one@gmail.com').items.length, 2);

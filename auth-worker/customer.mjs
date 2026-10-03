@@ -19,7 +19,7 @@ async function initialize(db) {
   if (initializedDb === db) return;
   if (!initializing) initializing = (async () => {
     await db.batch(schemas.map(sql => db.prepare(sql)));
-    const columns = ['email', 'email_key', 'full_name', 'contact_no', 'date_of_birth', 'gender', 'firebase_uid'];
+    const columns = ['email', 'email_key', 'full_name', 'contact_no', 'date_of_birth', 'gender', 'firebase_uid', 'shipping_address'];
     const existing = new Set((await db.prepare('PRAGMA table_info(customer_users)').all()).results.map(column => column.name));
     for (const column of columns) if (!existing.has(column)) {
       try {await db.prepare('ALTER TABLE customer_users ADD COLUMN ' + column + ' TEXT').run();}
@@ -88,13 +88,14 @@ async function linkFirebase(user, result, env) {
   if (!result.refreshToken) throw new Error('Firebase refresh token missing');
   return result;
 }
+const profileOf = user => ({username: user.username, email: user.email || null, fullName: user.full_name || null, contactNo: user.contact_no || null, dateOfBirth: user.date_of_birth || null, gender: user.gender || null, shippingAddress: user.shipping_address || ''});
 async function signIn(user, env, firebaseToken = null) {
   const token = random();
   await env.STAFF_DB.batch([
     env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE expires_at<=?').bind(Math.floor(Date.now() / 1000)),
     env.STAFF_DB.prepare('INSERT INTO customer_sessions (token_hash,user_id,expires_at,firebase_token) VALUES (?,?,?,?)').bind(await digest(token), user.id, Math.floor(Date.now() / 1000) + 28800, firebaseToken ? await sealFirebaseToken(env, JSON.stringify(firebaseToken)) : null)
   ]);
-  return json({token, username: user.username, email: user.email || null, fullName: user.full_name || null, ...cartOf(user)});
+  return json({token, ...profileOf(user), ...cartOf(user)});
 }
 export async function handleCustomer(request, env) {
   if (request.headers.get('Origin') !== env.ALLOWED_ORIGIN) return json({error: 'Use the customer website for this request.'}, 403);
@@ -172,7 +173,7 @@ export async function handleCustomer(request, env) {
           const result = await env.STAFF_DB.prepare('INSERT INTO customer_users (id,username,salt,password_hash,created_at,email,email_key,full_name,contact_no,date_of_birth,gender) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING').bind(id, gmailKey(email), salt, hash, Date.now(), email, gmailKey(email), data.fullName.trim(), data.contactNo, data.dateOfBirth, data.gender).run();
           if (!result.meta.changes) return json({error: 'This Gmail already has an account. Please log in or reset your password.'}, 409);
           authenticated = true;
-          const user = {id, username: gmailKey(email), email, email_key: gmailKey(email), full_name: data.fullName.trim(), cart_json: '[]', cart_version: 0};
+          const user = {id, username: gmailKey(email), email, email_key: gmailKey(email), full_name: data.fullName.trim(), contact_no: data.contactNo, date_of_birth: data.dateOfBirth, gender: data.gender, cart_json: '[]', cart_version: 0};
           const firebaseToken = firebaseConfigured(env) ? await linkFirebase(user, await firebaseEnsure(env, user.email_key, data.password), env) : null;
           return signIn(user, env, firebaseToken);
         }
@@ -193,7 +194,7 @@ export async function handleCustomer(request, env) {
             const update = await env.STAFF_DB.prepare('UPDATE customer_users SET email=?,email_key=?,full_name=?,contact_no=?,date_of_birth=?,gender=? WHERE id=? AND email_key IS NULL').bind(email, gmailKey(email), data.fullName.trim(), data.contactNo, data.dateOfBirth, data.gender, user.id).run();
             if (!update.meta.changes) return json({error: 'This account was updated. Please log in with Gmail.'}, 409);
           } catch {return json({error: 'This Gmail is already linked to an account.'}, 409);}
-          user.email = email; user.email_key = gmailKey(email); user.full_name = data.fullName.trim();
+          user.email = email; user.email_key = gmailKey(email); user.full_name = data.fullName.trim(); user.contact_no = data.contactNo; user.date_of_birth = data.dateOfBirth; user.gender = data.gender;
         }
         if (firebaseConfigured(env) && !firebaseToken) firebaseToken = await linkFirebase(user, await firebaseEnsure(env, user.email_key, data.password), env);
         authenticated = true; return signIn(user, env, firebaseToken);
@@ -201,7 +202,14 @@ export async function handleCustomer(request, env) {
     }
     const user = await userFor(request, env);
     if (!user) return json({error: 'Please log in to use your cart.'}, 401);
-    if (path === '/customer/me' && request.method === 'GET') return json({username: user.username, email: user.email || null, fullName: user.full_name || null, ...cartOf(user)});
+    if (path === '/customer/me' && request.method === 'GET') return json({...profileOf(user), ...cartOf(user)});
+    if (path === '/customer/profile' && request.method === 'PUT') {
+      const data = await body(request);
+      if (typeof data.shippingAddress !== 'string' || data.shippingAddress.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(data.shippingAddress)) return json({error: 'Enter a shipping address of up to 1,000 characters.'}, 400);
+      const address = data.shippingAddress.replace(/\r\n?/g, '\n').trim();
+      await env.STAFF_DB.prepare('UPDATE customer_users SET shipping_address=? WHERE id=?').bind(address, user.id).run();
+      return json({...profileOf({...user, shipping_address: address}), message: 'Shipping address saved.'});
+    }
     if (path === '/customer/logout' && request.method === 'POST') {
       await env.STAFF_DB.prepare('DELETE FROM customer_sessions WHERE token_hash=?').bind(await digest(request.headers.get('Authorization').slice(7))).run();
       return json({message: 'Logged out.'});
