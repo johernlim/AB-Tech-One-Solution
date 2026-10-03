@@ -2,6 +2,7 @@ import {loadCategories, renderCategoryCards} from './category-store.js';
 const container = document.querySelector('#services .services-grid');
 try {
   const categories = await loadCategories();
+  document.getElementById('systems-count-heading').textContent = `${categories.length} system${categories.length === 1 ? '' : 's'}. One team.`;
   renderCategoryCards(container, categories);
   const select = document.getElementById('service');
   if (select) {
