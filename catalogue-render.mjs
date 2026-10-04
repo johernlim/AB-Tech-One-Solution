@@ -19,7 +19,7 @@ export function renderCatalogue(template,snapshot,selected,now=new Date()) {
   content('total-count',products.length);content('count-label','products to explore');content('result-count',`${products.length} product${products.length===1?'':'s'}`);
   template=template.replace('<div id="category-landing">','<div id="category-landing" hidden>').replace('<div id="product-browser" hidden>','<div id="product-browser">');
   template=template.replace('<div id="products" class="products-grid" aria-busy="true"></div>',`<div id="products" class="products-grid" aria-busy="false">${products.map((p,i)=>productMarkup(p,i,snapshot.promotions,snapshot.offers,now)).join('')}</div>`);
-  if(selected)template=template.replace('class="sort-field"','class="sort-field" hidden').replace('placeholder="Try camera, WiFi or laptop…"',`placeholder="Search ${escape(title)} products…"`);
+  if(selected)template=template.replace('href="index.html?return=services" hidden','href="index.html?return=services"').replace('class="sort-field"','class="sort-field" hidden').replace('placeholder="Try camera, WiFi or laptop…"',`placeholder="Search ${escape(title)} products…"`);
   if(!products.length)template=template.replace('id="empty-state" class="empty-state" hidden','id="empty-state" class="empty-state"');
   const json=JSON.stringify(snapshot).replace(/</g,'\\u003c');
   return template.replace('</head>',`<script id="catalogue-snapshot" type="application/json">${json}</script></head>`);

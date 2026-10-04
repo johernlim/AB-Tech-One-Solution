@@ -4,14 +4,14 @@ document.addEventListener('click', event => {
   const link = event.target.closest('a[href]');
   if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.target === '_blank') return;
   const target = new URL(link.href);
-  if (target.origin === location.origin && target.pathname === new URL('catalogue.html', location.href).pathname) {
+  if (target.origin === location.origin && [new URL('catalogue.html', location.href).pathname, new URL('catalogue', location.href).pathname].includes(target.pathname)) {
     try { sessionStorage.setItem(homeReturnKey, JSON.stringify({url: location.href, y: scrollY})); } catch {}
   }
 });
 if (new URL(location.href).searchParams.get('return') === 'services') {
   history.scrollRestoration = 'manual';
   window.addEventListener('load', async () => {
-    await document.fonts.ready;
+    await Promise.all([document.fonts.ready, window.homeCategoriesReady]);
     let saved;
     try { saved = JSON.parse(sessionStorage.getItem(homeReturnKey)); sessionStorage.removeItem(homeReturnKey); } catch {}
     const url = new URL(location.href); url.searchParams.delete('return'); history.replaceState(history.state, '', url);

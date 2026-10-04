@@ -1,4 +1,5 @@
 import {loadCategories, renderCategoryCards} from './category-store.js?v=preload-1';
+window.homeCategoriesReady = (async () => {
 const container = document.querySelector('#services .services-grid');
 try {
   const categories = await loadCategories();
@@ -16,3 +17,5 @@ try {
   const message = document.createElement('p'); message.textContent = 'Product categories could not load. Please refresh or contact our team.';
   container.append(message);
 }
+
+})();

@@ -19,6 +19,7 @@ const promotionMoney = new Intl.NumberFormat('en-MY',{style:'currency',currency:
 const params = new URLSearchParams(location.search);
 if (params.has('category')) params.set('category', currentCategoryName(params.get('category'), productCategories));
 const hasCategory = categories.includes(params.get('category'));
+document.getElementById('category-home-back').hidden = !hasCategory;
 const selectedCategory = hasCategory ? params.get('category') : null;
 const browsingProducts = hasCategory || params.get('view') === 'all';
 if (params.has('category') && !hasCategory) document.getElementById('catalogue-page-description').textContent = 'That category is no longer available. Browse our current categories below.';
