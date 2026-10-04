@@ -49,7 +49,7 @@ const assert = require('node:assert/strict');
     // A different qualifying product also unlocks the saved add-ons.
     items.push({id:'recorder',category:'CCTV Systems',quantity:1});version++;await page.reload();await waitTotal('RM165.00');
     await page.screenshot({path:'.preview/pwp-cart-desktop.png',fullPage:true});
-    await page.getByRole('button',{name:'Checkout',exact:true}).click();
+    await page.getByRole('button',{name:'Proceed to checkout',exact:true}).click();
     assert.equal((await page.locator('.checkout-total strong').textContent()).replace(/\s/g,''),'RM165.00');
     await page.setViewportSize({width:390,height:844});await page.reload();await waitTotal('RM165.00');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

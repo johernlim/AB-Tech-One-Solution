@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
   const browser = await chromium.launch({channel: 'chrome', headless: true});
   const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
   const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.route('**/data/discount-promotions.json',route=>route.fulfill({json:{promotions:[]}}));
   const users = new Map(), tokens = new Map(); let sequence = 0, writes = 0, failSave = false, profileWrites = 0;
   await page.route('https://ab-tech-catalogue-auth.johern20154.workers.dev/customer/**', async route => {
     const req = route.request(), path = new URL(req.url()).pathname.split('/').pop();
@@ -92,7 +93,7 @@ const assert = require('node:assert/strict');
     await page.locator('[data-cart-open]').click(); await page.locator('.cart-item').waitFor();
     await page.getByRole('link', {name: 'View cart', exact: true}).click();
     await page.locator('[data-cart-page] .cart-item').waitFor(); await count(1);
-    await page.locator('.cart-quantity button').last().click(); await count(2);
+    await page.getByRole('button',{name:/^Increase quantity of/}).click(); await count(2);
     await page.waitForFunction(() => document.querySelector('#cart-total').textContent.includes('1,332.00'));
     await page.locator('.cart-quantity button').first().click(); await count(1);
     await page.reload(); await page.locator('[data-cart-page] .cart-item').waitFor(); await count(1);
@@ -100,7 +101,7 @@ const assert = require('node:assert/strict');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({path: '.preview/full-cart-mobile.png'});
     await page.setViewportSize({width: 1440, height: 1000});
-    await page.getByRole('button', {name: 'Checkout', exact: true}).click();
+    await page.getByRole('button', {name: 'Proceed to checkout', exact: true}).click();
     const checkout = page.locator('#checkout-form'); await checkout.waitFor();
     assert.equal(await checkout.locator('[name=fullName]').inputValue(), 'Customer Test');
     assert.equal(await checkout.locator('[name=contactNo]').inputValue(), '01112345678');
@@ -152,5 +153,5 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', {name: 'Close account window', exact: true}).click();
     assert.deepEqual(errors, []);
     console.log('Guest browsing, login gating, cancelled pending add, auto-add after signup/login, failed login, account cart isolation, persistence, failed save, header position and mobile account form passed.');
-  } finally {await browser.close();}
+  } catch(error) {console.error({errors,message:await page.locator('#customer-message').textContent(),toast:await page.locator('.cart-toast').textContent(),invalid:await page.locator('#customer-register-form :invalid').evaluateAll(nodes=>nodes.map(n=>({name:n.name,message:n.validationMessage})))});throw error;} finally {await browser.close();}
 })().catch(e => {console.error(e); process.exitCode = 1;});

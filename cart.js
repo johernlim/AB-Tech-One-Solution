@@ -1,4 +1,4 @@
-import {setupCheckout} from './checkout.js?v=checkout-2';
+import {setupCheckout} from './checkout.js?v=cart-design-1';
 import {loadCategories, currentCategoryName} from './category-store.js';
 import {loadPwpOffers, pwpChoices, PWP_CATEGORY, productKey} from './pwp.js?v=pwp-no-dates-1';
 import {loadPromotions,promotionLine} from './promotions.js?v=promotion-prices-1';
@@ -10,6 +10,7 @@ const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR'
 const keyOf = product => product.category + ':' + product.id;
 let items = [], version = 0, catalogue, pending, trigger, saving = false, mutation = Promise.resolve();
 let offers = [];
+let orderSummary = {subtotal:0,savings:0,lines:[],savingsLabel:'Promotion savings'};
 let currentCategories = [];
 function normalizedItems(source) {
   const merged = new Map();
@@ -25,16 +26,16 @@ const cart = pageCart || document.createElement('dialog');
 const visible = () => Boolean(pageCart || cart.open);
 cart.className = pageCart ? 'cart-dialog cart-page-panel' : 'cart-dialog';
 cart.setAttribute('aria-labelledby', 'cart-title');
-cart.innerHTML = `<div class="cart-heading"><div><span class="eyebrow">Your selection</span><h2 id="cart-title">Shopping cart</h2></div><button type="button" class="cart-close" aria-label="Close cart">×</button></div><p class="cart-status" role="status"></p><div class="cart-items"></div><div class="cart-summary"><div><span id="cart-total-label">Total</span><strong id="cart-total">RM 0.00</strong></div><p class="cart-price-note"></p><p>Product prices only. Delivery and installation are confirmed separately.</p></div><div class="cart-actions"><button type="button" class="button secondary cart-continue">Continue shopping</button><a class="button cart-view" href="cart.html">View cart</a><button type="button" class="cart-clear">Clear cart</button></div>`;
+cart.innerHTML = `<div class="cart-heading"><div><span class="eyebrow">Your selection</span><h2 id="cart-title">Shopping cart</h2></div><button type="button" class="cart-close" aria-label="Close cart">×</button></div><p class="cart-status" role="status"></p><div class="cart-items"></div><div class="cart-summary"><h3>Order summary</h3><div class="cart-subtotal"><span>Subtotal</span><span data-cart-subtotal></span></div><div class="summary-final"><span id="cart-total-label">Total</span><strong id="cart-total">RM 0.00</strong></div><p class="cart-price-note"></p><p>Delivery and installation quoted separately.</p></div><div class="cart-actions"><button type="button" class="button secondary cart-continue">Continue shopping</button><a class="button cart-view" href="cart.html">View cart</a><button type="button" class="cart-clear">Clear cart</button></div>`;
 if (pageCart) {const heading = cart.querySelector('#cart-title'), title = document.createElement('h1'); title.id = heading.id; title.textContent = heading.textContent; heading.replaceWith(title);}
 const pwpPanel = document.createElement('section'); pwpPanel.className = 'cart-pwp'; pwpPanel.hidden = true;
 pwpPanel.setAttribute('aria-label', 'Purchase with Purchase add-ons');
-cart.querySelector('.cart-summary').before(pwpPanel);
-const savingsLine = document.createElement('p'); savingsLine.className = 'cart-pwp-savings'; savingsLine.hidden = true;
-cart.querySelector('.cart-summary').prepend(savingsLine);
+cart.querySelector('.cart-actions').after(pwpPanel);
+const savingsLine = document.createElement('div'); savingsLine.className = 'cart-pwp-savings summary-discount'; savingsLine.hidden = true;
+cart.querySelector('.summary-final').before(savingsLine);
 if (!pageCart) document.body.append(cart);
 else {cart.querySelector('.cart-close').hidden = true; cart.querySelector('.cart-view').hidden = true;}
-const checkoutView = pageCart ? setupCheckout(cart, () => ({items, version, saving, unavailable: items.some(item => !catalogue?.has(keyOf(item))), total: cart.querySelector('#cart-total').textContent, totalLabel: cart.querySelector('#cart-total-label').textContent, note: cart.querySelector('.cart-price-note').textContent})) : null;
+const checkoutView = pageCart ? setupCheckout(cart, () => ({items, version, saving, ...orderSummary, unavailable: items.some(item => !catalogue?.has(keyOf(item))), total: cart.querySelector('#cart-total').textContent, totalLabel: cart.querySelector('#cart-total-label').textContent, note: cart.querySelector('.cart-price-note').textContent})) : null;
 const toast = document.createElement('p');
 toast.className = 'cart-toast'; toast.setAttribute('role', 'status');
 document.body.append(toast);
@@ -97,6 +98,8 @@ function render() {
   const container = cart.querySelector('.cart-items'); container.replaceChildren();
   const choices = pwpChoices(items, catalogue, offers);
   let total = 0, savings = 0, estimated = false, quotes = false, examples = false;
+  let subtotal=0,hasPromotion=false,hasPwpDiscount=false;
+  const summaryLines=[];
   if (!items.length) {
     const empty = node('div', 'cart-empty');
     empty.append(node('h3', '', 'Your cart is empty'), node('p', '', getCustomer() ? 'Browse the catalogue and add products you like.' : 'Browse products freely. Login or create an account when you add an item.'));
@@ -109,6 +112,7 @@ function render() {
     const row = node('article', 'cart-item');
     const copy = node('div', 'cart-item-copy');
     copy.append(node('span', 'product-category', item.category), node('h3', '', product?.name || item.id));
+    if(product?.description)copy.append(node('p','cart-model','Model: '+product.description));
     if (product) {
       const image = node('img');
       const path = String(product.image || '');
@@ -119,14 +123,22 @@ function render() {
     const cents = priced ? Math.round(product.price * 100) : 0;
     const line = priced ? promotionLine(item, product, choices,promotions) : null;
     total += line?.total || 0; savings += line?.saving || 0;
+    subtotal+=priced?cents*item.quantity:0;
+    hasPromotion ||= Boolean(line?.promotionQuantity);hasPwpDiscount ||= Boolean(line?.discountedQuantity);
+    summaryLines.push({name:product?.name||item.id,quantity:item.quantity,original:priced?cents*item.quantity:null,total:line?.total??null,label:line?.promotionQuantity?line.promotion.label:line?.discountedQuantity?'PWP offer':'',available});
     if (available) {estimated ||= product.price_mode === 'from'; quotes ||= !priced; examples ||= product.example;}
     const unitPrice = !available ? 'No longer available — remove this item' : !priced ? 'Price to be quoted' : (line?.discountedQuantity ? 'Normal price: ' : product.price_mode === 'from' ? 'From ' : '') + money.format(cents / 100) + ' each';
-    copy.append(node('p', '', unitPrice));
-    if(line?.promotionQuantity){copy.append(node('span','pwp-badge',line.promotion.label),node('p','cart-pwp-note',`${line.promotionQuantity} at ${money.format(line.promotion.price)} each · ${line.promotion.name}`));}
+    if(line?.saving){
+      const badge=node('span','cart-discount-badge',line.promotionQuantity?line.promotion.label:'PWP offer');
+      const prices=node('div','cart-product-prices');prices.append(node('del','',money.format(cents/100)));
+      const unit=line.discountedQuantity===item.quantity?line.choice.price:line.promotionQuantity===item.quantity?line.promotion.price:null;
+      prices.append(node('strong','',unit!==null?money.format(unit):money.format(line.total/100)+' total'));copy.append(badge,prices);
+    }else copy.append(node('p','cart-regular-price',unitPrice));
+    if(line?.promotionQuantity&&line.promotionQuantity<item.quantity)copy.append(node('p','cart-pwp-note',`${line.promotionQuantity} at ${money.format(line.promotion.price)} each · ${line.promotion.name}`));
     if (line?.discountedQuantity) {
-      copy.append(node('span', 'pwp-badge', 'PWP add-on'), node('p', 'cart-pwp-note', `${line.discountedQuantity} at ${money.format(line.choice.price)} each · Save ${money.format(line.saving / 100)}`));
+      copy.append(node('p', 'cart-pwp-note', `${line.discountedQuantity} PWP add-on at ${money.format(line.choice.price)} each`));
       if (line.discountedQuantity < item.quantity) copy.append(node('p', 'cart-pwp-note', 'Additional quantities use the normal price.'));
-    } else if (product?.category === PWP_CATEGORY) copy.append(node('p', 'cart-pwp-note', 'Normal price. Add a qualifying product to unlock an active PWP offer.'));
+    } else if (product?.category === PWP_CATEGORY && !line?.promotionQuantity) copy.append(node('p', 'cart-pwp-note', 'Normal price. Add a qualifying product to unlock an active PWP offer.'));
     if (product && (product.new_arrival ?? product.example)) copy.append(node('span', 'sample-badge', 'NEW ARRIVAL'));
     const controls = node('div', 'cart-quantity');
     const minus = node('button', '', '−'), plus = node('button', '', '+'), input = node('input');
@@ -148,15 +160,19 @@ function render() {
     input.addEventListener('change', () => change(Number(input.value)));
     controls.append(minus, input, plus); copy.append(controls);
     const end = node('div', 'cart-item-end');
+    end.hidden = item.quantity===1&&priced;
     end.append(node('strong', '', !available ? 'Unavailable' : !priced ? 'Quote needed' : (product.price_mode === 'from' ? 'From ' : '') + money.format(line.total / 100)));
     const remove = node('button', 'cart-remove', 'Remove'); remove.type = 'button';
     remove.setAttribute('aria-label', 'Remove ' + (product?.name || item.id));
     remove.addEventListener('click', async () => {if (saving) return; await save(current => current.filter(i => keyOf(i) !== keyOf(item))); cart.querySelector(pageCart ? '.cart-continue' : '.cart-close').focus();});
-    end.append(remove); row.append(copy, end); container.append(row);
+    controls.append(remove); row.append(copy, end); container.append(row);
   });
   cart.querySelector('#cart-total-label').textContent = estimated || quotes || examples ? 'Estimated total' : 'Total';
   cart.querySelector('#cart-total').textContent = money.format(total / 100);
-  savingsLine.hidden = savings === 0; savingsLine.textContent = (items.some(item=>{const p=catalogue?.get(keyOf(item));return p&&promotionLine(item,p,choices,promotions).promotionQuantity;})?'Total savings: ':'PWP savings: ') + money.format(savings / 100);
+  const savingsLabel=hasPromotion&&hasPwpDiscount?'Discount savings':hasPwpDiscount?'PWP savings':'Promotion savings';
+  orderSummary={subtotal,savings,lines:summaryLines,savingsLabel};
+  cart.querySelector('[data-cart-subtotal]').textContent=money.format(subtotal/100);
+  savingsLine.hidden = savings === 0; savingsLine.replaceChildren(node('span','',savingsLabel),node('strong','','− '+money.format(savings/100)));
   renderPwp(choices);
   cart.querySelector('.cart-price-note').textContent = [quotes ? 'Quote-only items are excluded from this total.' : '', estimated ? '“From” prices are starting prices.' : '', examples ? 'Example products have illustrative prices. Contact us to confirm actual pricing.' : ''].filter(Boolean).join(' ');
   cart.querySelector('.cart-clear').hidden = !items.length;
