@@ -1,6 +1,7 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {showCategoryIcon} from '../category-icon.js';
 import {setupCategoryIconEditor} from './category-icon-editor.js';
+import {setupBulkProducts} from './bulk-products.js';
 import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
 import {setupPromotionsAdmin} from './promotions-admin.js?v=promotion-prices-1';
 const $ = id => document.getElementById(id);
@@ -11,6 +12,7 @@ const uploadedPhotoPreviews = new Map();
 const categoryIconEditor = setupCategoryIconEditor({upload, isBusy:()=>busy, setBusy:value=>busy=value, notify:(message,error)=>notice('staff-category-message',message,error)});
 const pwpAdmin = setupPwpAdmin(api, () => busy, value => busy = value);
 const promotionsAdmin = setupPromotionsAdmin(api, () => busy, value => busy = value);
+const bulkAdmin = setupBulkProducts(api, () => busy, value => busy = value, upload);
 const visibilityControl=document.createElement('label');visibilityControl.className='category-visibility';
 visibilityControl.innerHTML='<span>Show category</span><input id="staff-category-visible" type="range" min="0" max="1" step="1" value="1" aria-label="Show category on website" aria-valuetext="On — Visible"><strong id="staff-category-visible-label">On</strong>';
 document.querySelector('.category-product-actions').prepend(visibilityControl);
@@ -36,7 +38,7 @@ async function api(path, options = {}) {
   for (let attempt = 0; attempt < (readOnly ? 2 : 1); attempt++) {
     let retryable = true;
     try {
-      const response = await fetch(new URL('/staff/' + path, base), {...options, cache: 'no-store', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})}, signal: AbortSignal.timeout(20000)});
+      const response = await fetch(new URL('/staff/' + path, base), {...options, cache: 'no-store', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: 'Bearer ' + token} : {})}, signal: AbortSignal.timeout(path === 'bulk-products' ? 60000 : 20000)});
       retryable = response.status >= 500;
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Please try again shortly.');
@@ -100,6 +102,7 @@ async function workspace() {
   $('staff-category-menu').open = false;
   pwpAdmin.reset();
   promotionsAdmin.reset();
+  bulkAdmin.reset();
   selected = null; products = []; sha = null;
   $('staff-products').replaceChildren();
   $('staff-category-title').textContent = '';
@@ -242,7 +245,7 @@ async function initialize() {
     if (busy) return;
     busy = true; $('staff-logout').disabled = true;
     try {await api('logout', {method: 'POST'});} catch {} finally {
-      token = null; products = []; sha = null; pwpAdmin.reset(); $('staff-products').replaceChildren(); $('staff-product-dialog').close(); $('staff-product-form').reset(); $('staff-workspace').hidden = true; $('admin-home').hidden = false; busy = false; $('staff-logout').disabled = false; notice('account-message', 'You have logged out.');
+      token = null; products = []; sha = null; bulkAdmin.reset(); pwpAdmin.reset(); $('staff-products').replaceChildren(); $('staff-product-dialog').close(); $('staff-product-form').reset(); $('staff-workspace').hidden = true; $('admin-home').hidden = false; busy = false; $('staff-logout').disabled = false; notice('account-message', 'You have logged out.');
     }
   });
   $('add-staff-product').addEventListener('click', () => editProduct(-1));

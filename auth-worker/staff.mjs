@@ -1,4 +1,5 @@
 import {readCategories, changeCategories} from './categories.mjs';
+import {publishBulk} from './bulk.mjs';
 import {readPwp, pwpCatalogue, publishPwp} from './pwp.mjs';
 import {readPromotions, publishPromotions} from './promotions.mjs';
 import {validPassword, passwordRequirement} from '../password-policy.js';
@@ -91,7 +92,7 @@ export async function handleStaff(request, env) {
         const row = await env.STAFF_DB.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('staff_users','staff_sessions','staff_attempts')").first();
         if (row.count !== 3) {status.configured = false; status.loginConfigured = false; status.registrationConfigured = false; status.missing.push('STAFF_DB schema');}
       }
-      return json({...status, categoryManagement: true, categoryVisibility: true, categoryIconUploads: true, pwpManagement: true, promotionManagement: true});
+      return json({...status, categoryManagement: true, categoryVisibility: true, categoryIconUploads: true, bulkProducts: true, pwpManagement: true, promotionManagement: true});
     }
     const readiness = staffStatus(env);
     if (!readiness.loginConfigured) return json({error: 'Login is temporarily unavailable. Please contact the owner and try again shortly.'}, 503);
@@ -147,6 +148,7 @@ export async function handleStaff(request, env) {
     if (url.pathname === '/staff/pwp' && request.method === 'GET') return json({...await readPwp(env), products: await pwpCatalogue(env)});
     if (url.pathname === '/staff/pwp' && request.method === 'PUT') return publishPwp(env, user, await body(request, 750000));
     if (url.pathname === '/staff/categories' && request.method === 'GET') return json(await readCategories(env));
+    if (url.pathname === '/staff/bulk-products' && request.method === 'POST') return publishBulk(env,user,await body(request,2000000),validateProducts);
     if (url.pathname === '/staff/categories' && request.method === 'POST') return changeCategories(env, user, 'POST', null, await body(request));
     const categorySlug = url.pathname.match(/^\/staff\/categories\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
     if (categorySlug && request.method === 'PATCH') return changeCategories(env, user, 'PATCH', categorySlug, await body(request));
