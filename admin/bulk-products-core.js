@@ -1,6 +1,6 @@
 export const columns=['Category ID','Product ID','Product Name','Model Number','Price (RM)','Price Type','Visible','New Arrival','Image Filename','Availability','Installation','Specifications','Version'];
 export const combinedColumns=['Action','Category',...columns.slice(1)];
-export function combinedExportRow(category,product,sha){const row=exportRow(category,product,sha);row[0]=category.name;return ['Update',...row];}
+export function combinedExportRow(category,product,sha){const row=exportRow(category,product,sha);row[0]=category.name;return ['Skip',...row];}
 export const editableFields=['name','description','price','price_mode','published','new_arrival','image','availability','installation','specifications'];
 const text=value=>String(value??'').trim();
 const bool=(value,fallback)=>!text(value)?fallback:/^(yes|true|1)$/i.test(text(value))?true:/^(no|false|0)$/i.test(text(value))?false:null;
@@ -9,13 +9,14 @@ export function reviewRows(rows,batchMode,catalogue,photos=new Map()){
   const errors=[],items=[],seen=new Set(),counts=new Map();
   if(!rows.length||rows.length>250)return {errors:['Use 1–250 product rows per batch.'],items:[]};
   rows.forEach((values,index)=>{
-    if(values.every(value=>!text(value)))return;
+    if((batchMode==='mixed'?values.slice(1):values).every(value=>!text(value)))return;
     const row=Object.fromEntries((batchMode==='mixed'?combinedColumns:columns).map((key,i)=>[key,text(values[i])])),line=index+2;
     const fail=message=>errors.push('Row '+line+': '+message);
-    const mode=batchMode==='mixed'?({add:'add',update:'edit'}[row.Action.toLowerCase()]):batchMode;
-    if(!mode){fail('Action must be Add or Update. Unchanged products are skipped automatically.');return;}
     const group=catalogue.find(c=>batchMode==='mixed'?c.name===row.Category:c.slug===row['Category ID']);
     if(!group){fail('Choose an existing Category from the Categories sheet.');return;}
+    // Identity and the saved version decide the action, never a spreadsheet label.
+    const existing=group.products.find(p=>p.id===row['Product ID']);
+    const mode=batchMode==='mixed'?(row.Version||existing?'edit':'add'):batchMode;
     if(mode==='add'&&row.Version){fail('For Add, leave Version blank. Use Update for existing rows.');return;}
     const generated=batchMode==='mixed'&&mode==='add'&&!row['Product ID'];
     const id=generated?'product-'+crypto.randomUUID():row['Product ID'],key=group.slug+':'+id;
