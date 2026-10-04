@@ -64,3 +64,9 @@ Click the signed-in name to view the customer’s registration details and save 
 Shipping addresses now have street, city, Malaysian state / federal territory, 5-digit postcode and country fields. Country is preset to Malaysia. Structured fields and the formatted address are saved together in D1; existing free-text addresses stay available in Street Address until the customer completes the new fields.
 
 The full cart page includes a checkout details UI with customer name, mobile number, Gmail, optional order instructions and Malaysian shipping address fields. Account details prefill the form. The privacy-policy checkbox is omitted. This is UI-only until a payment link/provider is connected: validating the form keeps the cart and does not create an order, charge a payment or save checkout edits to the account.
+
+## Category page first response
+
+Cloudflare Pages Functions renders `/catalogue?category=…` and `/catalogue?view=all` from the same deployment’s published category/product JSON. Product cards, prices, current discounts and badges are included in the HTML. The browser uses the embedded public snapshot to enable search, details and cart actions without fetching catalogue data again. New categories need no manual page generation. Only the catalogue routes invoke the function; other assets remain static. Responses revalidate rather than retaining an old promotion page. The existing static client loader remains a fallback if rendering fails or the site runs on a plain local static server.
+
+Run `node --test tests/server-catalogue.test.mjs` and `node tests/server-catalogue-browser.cjs`. The browser test checks products with JavaScript disabled and interactive behaviour with catalogue fetches blocked. Set `CATALOGUE_TEST_URL` to verify the deployed site.

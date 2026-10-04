@@ -6,7 +6,8 @@ import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1'
 import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-no-dates-1';
 
 const hasPwp = product => pwpOffers.some(offer => activeOffer(offer) && offer.qualifiers.includes(productKey(product)));
-const [promotions, pwpOffers, productCategories] = await Promise.all([
+const snapshot = JSON.parse(document.getElementById('catalogue-snapshot')?.textContent || 'null');
+const [promotions, pwpOffers, productCategories] = snapshot ? [snapshot.promotions, snapshot.offers, snapshot.categories] : await Promise.all([
   loadPromotions().catch(() => []),
   loadPwpOffers().catch(() => []),
   loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];})
@@ -194,12 +195,12 @@ if (hasCategory) {
 if (browsingProducts) {
 document.getElementById('count-label').textContent = 'products to explore';
 filters();
-Promise.all(productCategories.filter(item => !hasCategory || item.name === selectedCategory).map(async ({name, slug}) => {
+(snapshot ? Promise.resolve([snapshot.products]) : Promise.all(productCategories.filter(item => !hasCategory || item.name === selectedCategory).map(async ({name, slug}) => {
   const response = await fetch('data/categories/' + slug + '.json');
   if (!response.ok) throw new Error('Catalogue unavailable');
   const data = await response.json();
   return data.products.filter(p => p.published === true).map(p => ({...p, category: name}));
-})).then(groups => {
+}))).then(groups => {
   products = groups.flat();
   document.getElementById('total-count').textContent = products.length;
   grid.setAttribute('aria-busy', 'false'); render();
