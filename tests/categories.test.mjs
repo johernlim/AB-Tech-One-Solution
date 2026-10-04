@@ -95,3 +95,10 @@ test('Visibility can hide and restore categories without rewriting products; edi
   await withGit(async()=>{assert.equal((await handleStaff(request('categories/cctv','PATCH',{sha:'b'.repeat(40),category:{...existing,visible:'false'}}),env)).status,400);});
   await withGit(async()=>{const result=await handleStaff(request('categories','POST',{sha:'b'.repeat(40),category}),env);assert.equal((await result.json()).categories[1].visible,true);});
 });
+
+test('Custom category icons persist on create and edit; unsafe paths and unsupported formats are rejected',async()=>{
+  const icon='assets/uploads/custom-icon.png';
+  await withGit(async()=>{const response=await handleStaff(request('categories','POST',{sha:'b'.repeat(40),category:{...category,icon}}),env);assert.equal(response.status,201);assert.equal((await response.json()).categories[1].icon,icon);});
+  await withGit(async()=>{const response=await handleStaff(request('categories/cctv','PATCH',{sha:'b'.repeat(40),category:{...existing,icon:'network'}}),env);assert.equal(response.status,200);assert.equal((await response.json()).categories[0].icon,'network');},{initialCategory:{...existing,icon}});
+  for(const icon of ['https://evil.test/image.png','assets/uploads/../image.png','assets/uploads/icon.svg','assets/uploads/icon.jpg','assets/uploads/icon.png?x=1'])await withGit(async()=>{assert.equal((await handleStaff(request('categories','POST',{sha:'b'.repeat(40),category:{...category,icon}}),env)).status,400);});
+});

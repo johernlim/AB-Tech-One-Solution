@@ -1,3 +1,4 @@
+import {showCategoryIcon} from './category-icon.js';
 const root = new URL('.', import.meta.url);
 export function currentCategoryName(name, categories) {
   return categories.find(category => category.name === name || (category.aliases || []).includes(name))?.name || name;
@@ -23,8 +24,12 @@ export function renderCategoryCards(container, categories) {
       card.append(code, icon, heading, description, link);
     }
     card.querySelector('.service-code').textContent = category.code || 'SYS / ' + category.slug.toUpperCase();
-    const icon = card.querySelector('img.service-icon');
-    if (icon) icon.src = new URL('assets/category-icons/' + (category.icon || 'network') + '.svg', root).href;
+    let icon = card.querySelector('.service-icon');
+    if (icon && icon.tagName.toLowerCase() !== 'img') {
+      const image = document.createElement('img'); image.className = 'service-icon'; image.alt = ''; image.width = image.height = 42;
+      icon.replaceWith(image); icon = image;
+    }
+    if (icon) showCategoryIcon(icon, category.icon);
     card.querySelector('h3 a').textContent = category.name;
     card.querySelector('p').textContent = category.description;
     const href = new URL('catalogue.html?category=' + encodeURIComponent(category.name), root);

@@ -91,7 +91,7 @@ export async function handleStaff(request, env) {
         const row = await env.STAFF_DB.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('staff_users','staff_sessions','staff_attempts')").first();
         if (row.count !== 3) {status.configured = false; status.loginConfigured = false; status.registrationConfigured = false; status.missing.push('STAFF_DB schema');}
       }
-      return json({...status, categoryManagement: true, categoryVisibility: true, pwpManagement: true, promotionManagement: true});
+      return json({...status, categoryManagement: true, categoryVisibility: true, categoryIconUploads: true, pwpManagement: true, promotionManagement: true});
     }
     const readiness = staffStatus(env);
     if (!readiness.loginConfigured) return json({error: 'Login is temporarily unavailable. Please contact the owner and try again shortly.'}, 503);

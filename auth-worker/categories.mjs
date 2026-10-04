@@ -9,7 +9,7 @@ export function validCategory(category) {
   return category && typeof category.name === 'string' && category.name === category.name.trim() && category.name.length >= 2 && category.name.length <= 80 &&
     typeof category.slug === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(category.slug) && category.slug.length <= 64 &&
     typeof category.description === 'string' && category.description.trim().length > 0 && category.description.length <= 500 &&
-    categoryIcons.includes(category.icon) && (!category.code || typeof category.code === 'string' && category.code.length <= 32) &&
+    (categoryIcons.includes(category.icon) || typeof category.icon === 'string' && /^assets\/uploads\/[a-zA-Z0-9_-]+\.(png|webp)$/.test(category.icon) && category.icon.length <= 160) && (!category.code || typeof category.code === 'string' && category.code.length <= 32) &&
     (category.visible === undefined || typeof category.visible === 'boolean') &&
     (category.aliases === undefined || Array.isArray(category.aliases) && category.aliases.length <= 100 && category.aliases.every(name => typeof name === 'string' && name === name.trim() && name.length >= 2 && name.length <= 80));
 }

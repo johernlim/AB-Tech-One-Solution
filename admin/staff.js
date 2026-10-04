@@ -1,4 +1,6 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
+import {showCategoryIcon} from '../category-icon.js';
+import {setupCategoryIconEditor} from './category-icon-editor.js';
 import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
 import {setupPromotionsAdmin} from './promotions-admin.js?v=promotion-prices-1';
 const $ = id => document.getElementById(id);
@@ -6,6 +8,7 @@ let productCategories = [], categoriesSha;
 let categoryEditing = null;
 let base, token, username, selected, products = [], sha, editing = -1, busy = false;
 const uploadedPhotoPreviews = new Map();
+const categoryIconEditor = setupCategoryIconEditor({upload, isBusy:()=>busy, setBusy:value=>busy=value, notify:(message,error)=>notice('staff-category-message',message,error)});
 const pwpAdmin = setupPwpAdmin(api, () => busy, value => busy = value);
 const promotionsAdmin = setupPromotionsAdmin(api, () => busy, value => busy = value);
 const visibilityControl=document.createElement('label');visibilityControl.className='category-visibility';
@@ -113,7 +116,7 @@ async function workspace() {
 function renderCategories() {
   $('staff-categories').replaceChildren(...productCategories.map(category => {
     const button = node('button'); button.type = 'button'; button.dataset.slug = category.slug; button.setAttribute('aria-pressed', String(selected?.slug===category.slug));
-    const icon = node('img'); icon.src = new URL('../assets/category-icons/' + (category.icon || 'network') + '.svg', location.href).href; icon.alt = '';
+    const icon = node('img'); showCategoryIcon(icon, category.icon); icon.alt = '';
     button.append(icon, node('span', category.name+(category.visible===false?' · Hidden':''))); button.addEventListener('click', () => loadCategory(category)); return button;
   }));
 }
@@ -169,6 +172,7 @@ async function initialize() {
     $('category-slug').readOnly = Boolean(category); $('category-name').readOnly = category?.slug === 'pwp';
     $('remove-staff-category').hidden = !category; $('remove-staff-category').disabled = category?.slug === 'pwp';
     if (category) for (const key of ['name','slug','description','icon']) form.elements[key].value = category[key];
+    categoryIconEditor.open(category?.icon || 'network');
     notice('staff-category-message', category?.slug === 'pwp' ? 'PWP Products is the dedicated add-on category. You can edit its description and icon.' : '');
     $('staff-category-dialog').showModal();
   }
