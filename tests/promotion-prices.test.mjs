@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {promotionFor,promotionLine} from '../promotions.js';
+const camera={category:'CCTV Systems',id:'cctv-turret',price:666,price_mode:'fixed'};
+const promo={name:'Sale',start:'2026-10-04',end:'2026-10-31',enabled:true,products:[{key:'CCTV Systems:cctv-turret',mode:'percent',value:20,limit:null}]};
+const now=new Date('2026-10-04T00:00:00Z');
+test('20% camera promotion uses cent rounding and Malaysia-inclusive dates',()=>{assert.equal(promotionFor(camera,[promo],now).price,532.8);assert.equal(promotionFor(camera,[promo],new Date('2026-10-03T16:00:00Z')).price,532.8);assert.equal(promotionFor(camera,[promo],new Date('2026-10-31T15:59:59Z')).price,532.8);assert.equal(promotionFor(camera,[promo],new Date('2026-10-31T16:00:00Z')),null);});
+test('Disabled, future and capped promotions do not apply',()=>{assert.equal(promotionFor(camera,[{...promo,enabled:false}],now),null);assert.equal(promotionFor(camera,[{...promo,start:'2026-10-05'}],now),null);assert.equal(promotionFor(camera,[{...promo,products:[{...promo.products[0],limit:10}]}],now),null);});
+test('PWP and sale prices do not stack; each unit gets its best eligible price',()=>{const item={...camera,quantity:3},choices=new Map([['CCTV Systems:cctv-turret',{price:500,limit:1}]]);const line=promotionLine(item,camera,choices,[promo],now);assert.equal(line.total,156560);assert.equal(line.discountedQuantity,1);assert.equal(line.promotionQuantity,2);assert.equal(line.saving,43240);const cheaperSale=promotionLine(item,camera,new Map([['CCTV Systems:cctv-turret',{price:600,limit:2}]]),[promo],now);assert.equal(cheaperSale.discountedQuantity,0);assert.equal(cheaperSale.total,159840);});

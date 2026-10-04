@@ -1,6 +1,6 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
-import {setupPromotionsAdmin} from './promotions-admin.js?v=promotions-1';
+import {setupPromotionsAdmin} from './promotions-admin.js?v=promotion-prices-1';
 const $ = id => document.getElementById(id);
 let productCategories = [], categoriesSha;
 let categoryEditing = null;

@@ -1,6 +1,8 @@
 import {setupCheckout} from './checkout.js?v=checkout-2';
 import {loadCategories, currentCategoryName} from './category-store.js';
-import {loadPwpOffers, pwpChoices, pwpLine, PWP_CATEGORY, productKey} from './pwp.js?v=pwp-no-dates-1';
+import {loadPwpOffers, pwpChoices, PWP_CATEGORY, productKey} from './pwp.js?v=pwp-no-dates-1';
+import {loadPromotions,promotionLine} from './promotions.js?v=promotion-prices-1';
+let promotions=[];
 import {customerReady, getCustomer, requireCustomer, customerRequest} from './customer-account.js?v=checkout-2';
 
 const root = new URL('.', import.meta.url);
@@ -79,7 +81,8 @@ function node(tag, className, text) {
 }
 async function loadCatalogue() {
   if (catalogue) return catalogue;
-  if (!pending) pending = Promise.all([loadCategories(), loadPwpOffers()]).then(([productCategories, currentOffers]) => {
+  if (!pending) pending = Promise.all([loadCategories(), loadPwpOffers(),loadPromotions()]).then(([productCategories, currentOffers,currentPromotions]) => {
+    promotions=currentPromotions;
     offers = currentOffers;
     currentCategories = productCategories; items = normalizedItems(items); updateCount();
     return Promise.all(productCategories.map(async ({name, slug}) => {
@@ -114,11 +117,12 @@ function render() {
     }
     const priced = available && product.price_mode !== 'quote' && Number.isFinite(product.price) && product.price >= 0;
     const cents = priced ? Math.round(product.price * 100) : 0;
-    const line = priced ? pwpLine(item, product, choices) : null;
+    const line = priced ? promotionLine(item, product, choices,promotions) : null;
     total += line?.total || 0; savings += line?.saving || 0;
     if (available) {estimated ||= product.price_mode === 'from'; quotes ||= !priced; examples ||= product.example;}
     const unitPrice = !available ? 'No longer available — remove this item' : !priced ? 'Price to be quoted' : (line?.discountedQuantity ? 'Normal price: ' : product.price_mode === 'from' ? 'From ' : '') + money.format(cents / 100) + ' each';
     copy.append(node('p', '', unitPrice));
+    if(line?.promotionQuantity){copy.append(node('span','pwp-badge',line.promotion.label),node('p','cart-pwp-note',`${line.promotionQuantity} at ${money.format(line.promotion.price)} each · ${line.promotion.name}`));}
     if (line?.discountedQuantity) {
       copy.append(node('span', 'pwp-badge', 'PWP add-on'), node('p', 'cart-pwp-note', `${line.discountedQuantity} at ${money.format(line.choice.price)} each · Save ${money.format(line.saving / 100)}`));
       if (line.discountedQuantity < item.quantity) copy.append(node('p', 'cart-pwp-note', 'Additional quantities use the normal price.'));
@@ -152,7 +156,7 @@ function render() {
   });
   cart.querySelector('#cart-total-label').textContent = estimated || quotes || examples ? 'Estimated total' : 'Total';
   cart.querySelector('#cart-total').textContent = money.format(total / 100);
-  savingsLine.hidden = savings === 0; savingsLine.textContent = 'PWP savings: ' + money.format(savings / 100);
+  savingsLine.hidden = savings === 0; savingsLine.textContent = (items.some(item=>{const p=catalogue?.get(keyOf(item));return p&&promotionLine(item,p,choices,promotions).promotionQuantity;})?'Total savings: ':'PWP savings: ') + money.format(savings / 100);
   renderPwp(choices);
   cart.querySelector('.cart-price-note').textContent = [quotes ? 'Quote-only items are excluded from this total.' : '', estimated ? '“From” prices are starting prices.' : '', examples ? 'Example products have illustrative prices. Contact us to confirm actual pricing.' : ''].filter(Boolean).join(' ');
   cart.querySelector('.cart-clear').hidden = !items.length;

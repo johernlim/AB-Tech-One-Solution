@@ -40,5 +40,5 @@ export async function publishPromotions(env,user,data) {
   const response=await github(env,path,{method:'PUT',body:JSON.stringify({branch:'main',sha:data.sha,message:'Update discount promotions by '+user.username,content:btoa(parts.join(''))})});
   if ([409,422].includes(response.status)) return json({error:'Promotions changed. Reload before saving.'},409);
   if (!response.ok) return json({error:'Could not save promotions. Please try again.'},502);
-  return json({sha:(await response.json()).content.sha,promotions,message:'Promotion settings published to GitHub. Sales tracking will begin when completed checkout is connected.'});
+  return json({sha:(await response.json()).content.sha,promotions,message:'Published to GitHub. No-limit promotions apply after deployment during their dates; capped promotions need completed-payment tracking.'});
 }

@@ -1,6 +1,8 @@
 'use strict';
 import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js';
-import {addToCart} from './cart.js?v=edit-category-1';
+import {addToCart} from './cart.js?v=promotion-prices-1';
+import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';
+const promotions = await loadPromotions().catch(() => []);
 import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-no-dates-1';
 const pwpOffers = await loadPwpOffers().catch(() => []);
 const hasPwp = product => pwpOffers.some(offer => activeOffer(offer) && offer.qualifiers.includes(productKey(product)));
@@ -8,6 +10,7 @@ const productCategories = await loadCategories().catch(() => {document.getElemen
 renderCategoryCards(document.querySelector('.catalogue-categories'), productCategories);
 const categories = productCategories.map(category => category.name);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
+const promotionMoney = new Intl.NumberFormat('en-MY',{style:'currency',currency:'MYR',minimumFractionDigits:2,maximumFractionDigits:2});
 const params = new URLSearchParams(location.search);
 if (params.has('category')) params.set('category', currentCategoryName(params.get('category'), productCategories));
 const hasCategory = categories.includes(params.get('category'));
@@ -30,7 +33,14 @@ function element(tag, className, content) {
 }
 function price(product) {
   if (product.price_mode === 'quote') return 'Request a quote';
-  return (product.price_mode === 'from' ? 'From ' : '') + money.format(product.price);
+  const offer=promotionFor(product,promotions);
+  return offer?promotionMoney.format(offer.price):(product.price_mode === 'from' ? 'From ' : '') + money.format(product.price);
+}
+function priceContent(container,product){
+  const offer=promotionFor(product,promotions);container.replaceChildren();
+  if(offer){const original=element('div','promotion-original');original.append(element('del','',promotionMoney.format(product.price)),element('span','promotion-badge',offer.label));container.append(original);}
+  container.append(element('span','',price(product)));
+  if(offer){container.append(element('small','promotion-saving','Save '+promotionMoney.format(product.price-offer.price)),element('small','promotion-period',offer.start+' – '+offer.end));}
 }
 function imagePath(path) {
   // Uploaded media stays within this site; reject script URLs and foreign paths.
@@ -67,7 +77,7 @@ function showDetails(product, button) {
   badge.hidden = !hasPwp(product) && product.category !== PWP_CATEGORY;
   badge.textContent = product.category === PWP_CATEGORY ? 'PWP add-on · Unlock special prices with qualifying products in your cart.' : 'PWP offer available · Choose your discounted add-ons in the cart.';
   document.getElementById('detail-category').textContent = product.category;
-  document.getElementById('detail-price').textContent = price(product);
+  priceContent(document.getElementById('detail-price'),product);
   document.getElementById('detail-description').textContent = product.description;
   document.getElementById('detail-installation').textContent = product.installation;
   document.getElementById('detail-availability').textContent = product.availability;
@@ -115,6 +125,7 @@ function card(product) {
   const heading = element('h3'); const name = element('button', 'product-title-button', product.name); name.type = 'button'; heading.append(name);
   const bottom = element('div', 'product-card-bottom');
   const cost = element('div', 'product-price', price(product));
+  priceContent(cost,product);
   cost.append(element('small', '', product.example ? 'Illustrative price' : product.availability));
   const model = element('p', 'product-model', product.description);
   copy.append(heading, model);
@@ -135,7 +146,8 @@ function render() {
     if (a.price_mode === 'quote' && b.price_mode === 'quote') return 0;
     if (a.price_mode === 'quote') return 1;
     if (b.price_mode === 'quote') return -1;
-    return sort.value === 'price-low' ? a.price - b.price : b.price - a.price;
+    const aPrice=promotionFor(a,promotions)?.price??a.price,bPrice=promotionFor(b,promotions)?.price??b.price;
+    return sort.value === 'price-low' ? aPrice - bPrice : bPrice - aPrice;
   });
   document.getElementById('category-title').textContent = category;
   document.getElementById('catalogue-page-title').textContent = category;
