@@ -1,4 +1,4 @@
-import {loadCategories, renderCategoryCards} from './category-store.js?v=preload-1';
+import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=preload-1';
 window.homeCategoriesReady = (async () => {
 const container = document.querySelector('#services .services-grid');
 try {
@@ -7,7 +7,8 @@ try {
   renderCategoryCards(container, categories);
   const select = document.getElementById('service');
   if (select) {
-    const saved = select.value;
+    const requested = new URLSearchParams(location.search).get('service');
+    const saved = requested ? currentCategoryName(requested, categories) : select.value;
     const options = categories.map(category => {const option = document.createElement('option'); option.value = category.name; option.textContent = category.name; return option;});
     select.replaceChildren(new Option('Choose a service', ''), ...options, new Option('Multiple services / Not sure', 'Multiple services / Not sure'));
     if ([...select.options].some(option => option.value === saved)) select.value = saved;

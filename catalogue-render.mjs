@@ -21,6 +21,7 @@ export function renderCatalogue(template,snapshot,selected,now=new Date()) {
   template=template.replace('<div id="products" class="products-grid" aria-busy="true"></div>',`<div id="products" class="products-grid" aria-busy="false">${products.map((p,i)=>productMarkup(p,i,snapshot.promotions,snapshot.offers,now)).join('')}</div>`);
   if(selected)template=template.replace('href="index.html?return=services" hidden','href="index.html?return=services"').replace('class="sort-field"','class="sort-field" hidden').replace('placeholder="Try camera, WiFi or laptop…"',`placeholder="Search ${escape(title)} products…"`);
   if(!products.length)template=template.replace('id="empty-state" class="empty-state" hidden','id="empty-state" class="empty-state"');
+  if(selected)template=template.replace('id="category-enquiry" class="button" href="index.html#contact"',`id="category-enquiry" class="button" href="index.html?service=${escape(encodeURIComponent(selected.name))}#contact"`);
   const json=JSON.stringify(snapshot).replace(/</g,'\\u003c');
   return template.replace('</head>',`<script id="catalogue-snapshot" type="application/json">${json}</script></head>`);
 }

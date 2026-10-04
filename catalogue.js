@@ -145,6 +145,7 @@ function card(product, index) {
   return article;
 }
 function render() {
+  document.getElementById('category-enquiry').href = category === 'All products' ? 'index.html#contact' : 'index.html?service=' + encodeURIComponent(category) + '#contact';
   const query = search.value.trim().toLowerCase();
   const visible = products.filter(p => (category === 'All products' || p.category === category) && `${p.name} ${p.description} ${p.category} ${(p.specifications || []).join(' ')}`.toLowerCase().includes(query));
   if (sort.value === 'name') visible.sort((a,b) => a.name.localeCompare(b.name));
