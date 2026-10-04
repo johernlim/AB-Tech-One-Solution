@@ -1,0 +1,15 @@
+const {spawn}=require('node:child_process');const assert=require('node:assert/strict');const path=require('node:path');
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{const proc=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--remote-debugging-port=9339','--user-data-dir='+path.resolve('.preview/prerender-chrome'),'--no-first-run','about:blank'],{windowsHide:true,stdio:'ignore'});let socket;try{
+let version;for(let i=0;i<40;i++){try{version=await(await fetch('http://localhost:9339/json/version')).json();break;}catch{await wait(200);}}
+socket=new WebSocket(version.webSocketDebuggerUrl);await new Promise(r=>socket.addEventListener('open',r,{once:true}));let seq=0;const pending=new Map();socket.addEventListener('message',e=>{const msg=JSON.parse(e.data);if(msg.id){const [resolve,reject]=pending.get(msg.id);pending.delete(msg.id);msg.error?reject(msg.error):resolve(msg.result);}});
+const send=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,[resolve,reject]);socket.send(JSON.stringify({id,method,params,sessionId}));});
+const {targetId}=await send('Target.createTarget',{url:'about:blank'});await send('Target.activateTarget',{targetId});let {sessionId}=await send('Target.attachToTarget',{targetId,flatten:true});const call=(m,p)=>send(m,p,sessionId);const evaluate=async expression=>(await call('Runtime.evaluate',{expression,returnByValue:true})).result.value;
+await call('Preload.enable');socket.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.method==='Preload.prerenderStatusUpdated')console.log(m.params.status,m.params.prerenderStatus||'');});await call('Page.enable');await call('Page.setPrerenderingAllowed',{isAllowed:true});await call('Page.navigate',{url:(process.env.CATALOGUE_TEST_URL||'http://localhost:8080')+'/'});
+for(let i=0;i<50;i++){if(await evaluate("!!document.querySelector('#services .service-link')"))break;await wait(200);}
+await evaluate("setTimeout(()=>{document.querySelector('#services .service-link').scrollIntoView();setTimeout(()=>document.querySelector('#services .service-link').click(),5000)},500)");
+await send('Target.detachFromTarget',{sessionId});await wait(6500);
+const attached=await send('Target.attachToTarget',{targetId,flatten:true});sessionId=attached.sessionId;
+const result=await evaluate("({activation:performance.getEntriesByType('navigation')[0].activationStart,products:document.querySelectorAll('.product-card').length,images:[...document.querySelectorAll('.product-card img')].slice(0,2).every(i=>i.complete&&i.naturalWidth>0)})");console.log(result);assert.ok(result.activation>0,'Must activate a prepared page');assert.ok(result.products>0);assert.equal(result.images,true);
+console.log('Chrome activated a fully prepared category with product images.');await send('Browser.close');
+}finally{if(socket?.readyState===1)socket.send(JSON.stringify({id:9999,method:'Browser.close'}));socket?.close();proc.kill();}})().catch(e=>{console.error(e);process.exitCode=1;});

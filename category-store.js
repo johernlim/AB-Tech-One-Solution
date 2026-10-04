@@ -1,3 +1,4 @@
+import {prepareCategoryLinks} from './category-preload.js';
 import {showCategoryIcon} from './category-icon.js';
 const root = new URL('.', import.meta.url);
 export function currentCategoryName(name, categories) {
@@ -37,4 +38,5 @@ export function renderCategoryCards(container, categories) {
     return card;
   });
   container.replaceChildren(...cards);
+  prepareCategoryLinks(container);
 }

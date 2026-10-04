@@ -1,12 +1,16 @@
 'use strict';
-import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=category-icons-1';
+import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=preload-1';
 import {addToCart} from './cart.js?v=category-icons-1';
 import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';
-const promotions = await loadPromotions().catch(() => []);
+
 import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-no-dates-1';
-const pwpOffers = await loadPwpOffers().catch(() => []);
+
 const hasPwp = product => pwpOffers.some(offer => activeOffer(offer) && offer.qualifiers.includes(productKey(product)));
-const productCategories = await loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];});
+const [promotions, pwpOffers, productCategories] = await Promise.all([
+  loadPromotions().catch(() => []),
+  loadPwpOffers().catch(() => []),
+  loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];})
+]);
 renderCategoryCards(document.querySelector('.catalogue-categories'), productCategories);
 const categories = productCategories.map(category => category.name);
 const money = new Intl.NumberFormat('en-MY', {style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 2});
@@ -107,12 +111,12 @@ function showDetails(product, button) {
   dialog.showModal();
   document.getElementById('close-dialog').focus();
 }
-function card(product) {
+function card(product, index) {
   const article = element('article', 'product-card');
   const photo = element('button', 'product-image-button'); photo.type = 'button';
   photo.setAttribute('aria-label', 'View ' + product.name);
   const img = element('img'); img.src = imagePath(product.image); img.alt = product.name + (product.example ? ' — example illustration' : '');
-  img.width = 640; img.height = 440; img.loading = 'lazy';
+  img.width = 640; img.height = 440; img.loading = index < 3 ? 'eager' : 'lazy';
   photo.append(img);
   if (product.new_arrival ?? product.example) photo.append(element('span', 'sample-badge', 'NEW ARRIVAL'));
   if (hasPwp(product) || product.category === PWP_CATEGORY) {
