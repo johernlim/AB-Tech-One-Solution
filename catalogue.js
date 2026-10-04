@@ -176,6 +176,11 @@ dialog.addEventListener('close', () => activeProductButton?.focus());
 document.getElementById('year').textContent = new Date().getFullYear();
 document.getElementById('category-landing').hidden = browsingProducts;
 document.getElementById('product-browser').hidden = !browsingProducts;
+if (!browsingProducts) {
+  document.getElementById('catalogue-page-title').textContent = 'OUR PRODUCTS & SERVICES';
+  document.getElementById('total-count').textContent = categories.length;
+  document.getElementById('count-label').textContent = 'categories to explore';
+}
 if (hasCategory) {
   document.querySelector('.sort-field').hidden = true;
   search.placeholder = 'Search ' + selectedCategory + ' products…';
