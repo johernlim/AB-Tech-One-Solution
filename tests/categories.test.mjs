@@ -17,6 +17,7 @@ async function withGit(run, {reserved = false, conflict = false} = {}) {
     if (url.includes('/contents/data/categories/smart-home.json?')) return new Response('', {status: reserved ? 200 : 404});
     if (url.includes('/contents/data/categories/cctv.json?')) return Response.json({content: Buffer.from(JSON.stringify({products:[{id:'camera',category:existing.name,name:'Camera'}]})).toString('base64')});
     if (url.includes('/contents/data/pwp-offers.json?')) return Response.json({content: Buffer.from(JSON.stringify({offers:[{id:'kit',qualifiers:['CCTV Systems:camera'],addons:[{key:'PWP Products:card',price:20}]}]})).toString('base64')});
+    if (url.includes('/contents/data/discount-promotions.json?')) return Response.json({content:Buffer.from(JSON.stringify({promotions:[{id:'sale',products:[{key:'CCTV Systems:camera',mode:'price',value:80,limit:100}]}]})).toString('base64')});
     if (url.endsWith('/git/commits/' + 'c'.repeat(40))) return Response.json({tree: {sha: 'd'.repeat(40)}});
     if (url.endsWith('/git/blobs')) return Response.json({sha: 'e'.repeat(40)});
     if (url.endsWith('/git/trees')) return Response.json({sha: 'f'.repeat(40)});
@@ -67,7 +68,8 @@ test('Category rename atomically updates product and PWP references and preserve
     const response=await handleStaff(request('categories/cctv','PATCH',{sha:'b'.repeat(40),category:{...existing,name:'Security Cameras',description:'Updated description.'}}),env);
     assert.equal(response.status,200);const result=await response.json();assert.deepEqual(result.categories[0].aliases,['CCTV Systems']);
     const tree=calls.find(c=>c.url.endsWith('/git/trees')).body.tree;
-    assert.deepEqual(tree.map(t=>t.path),['data/categories.json','data/categories/cctv.json','data/pwp-offers.json']);
+    assert.deepEqual(tree.map(t=>t.path),['data/categories.json','data/categories/cctv.json','data/pwp-offers.json','data/discount-promotions.json']);
+    assert.equal(JSON.parse(tree[3].content).promotions[0].products[0].key,'Security Cameras:camera');
     assert.equal(JSON.parse(tree[1].content).products[0].category,'Security Cameras');assert.equal(JSON.parse(tree[2].content).offers[0].qualifiers[0],'Security Cameras:camera');
     assert.equal(calls.at(-1).body.force,false);
   });

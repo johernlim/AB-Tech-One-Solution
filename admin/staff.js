@@ -1,11 +1,13 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
+import {setupPromotionsAdmin} from './promotions-admin.js?v=promotions-1';
 const $ = id => document.getElementById(id);
 let productCategories = [], categoriesSha;
 let categoryEditing = null;
 let base, token, username, selected, products = [], sha, editing = -1, busy = false;
 const uploadedPhotoPreviews = new Map();
 const pwpAdmin = setupPwpAdmin(api, () => busy, value => busy = value);
+const promotionsAdmin = setupPromotionsAdmin(api, () => busy, value => busy = value);
 function resetPhotoPreviews() {for (const url of uploadedPhotoPreviews.values()) URL.revokeObjectURL(url); uploadedPhotoPreviews.clear();}
 function renderProductPhotos() {
   const form = $('staff-product-form');
@@ -90,6 +92,7 @@ async function loadCategory(category) {
 async function workspace() {
   $('staff-category-menu').open = false;
   pwpAdmin.reset();
+  promotionsAdmin.reset();
   selected = null; products = []; sha = null;
   $('staff-products').replaceChildren();
   $('staff-category-title').textContent = '';

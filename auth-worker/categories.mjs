@@ -62,6 +62,13 @@ export async function changeCategories(env, user, method, slug, data) {
         const offers = offerData.offers.map(o => ({...o, qualifiers: o.qualifiers.map(replaceKey), addons: o.addons.map(a => ({...a, key: replaceKey(a.key)}))}));
         if (JSON.stringify(offers) !== JSON.stringify(offerData.offers)) additions.push({path: 'data/pwp-offers.json', mode: '100644', type: 'blob', content: JSON.stringify({...offerData, offers}, null, 2) + '\n'});
       }
+      const promotionResponse = await api(env, 'contents/data/discount-promotions.json?ref=' + head);
+      if (!promotionResponse.ok && promotionResponse.status !== 404) return json({error:'Could not update discount promotion references.'},502);
+      if (promotionResponse.ok) {
+        const promotionData = JSON.parse(decode((await promotionResponse.json()).content));
+        const promotions = promotionData.promotions.map(p=>({...p,products:p.products.map(row=>({...row,key:row.key.startsWith(previous.name+':')?category.name+row.key.slice(previous.name.length):row.key}))}));
+        if(JSON.stringify(promotions)!==JSON.stringify(promotionData.promotions))additions.push({path:'data/discount-promotions.json',mode:'100644',type:'blob',content:JSON.stringify({...promotionData,promotions},null,2)+'\n'});
+      }
     }
     categories = categories.map(c => c.slug === slug ? category : c);
   } else {
