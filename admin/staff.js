@@ -1,5 +1,5 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
-import {setupPwpAdmin} from './pwp-admin.js?v=pwp-no-dates-1';
+import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
 const $ = id => document.getElementById(id);
 let productCategories = [], categoriesSha;
 let categoryEditing = null;
@@ -75,6 +75,7 @@ function render() {
 async function loadCategory(category) {
   if (busy) return;
   pwpAdmin.showProducts();
+  $('staff-category-title').closest('.staff-content-heading').hidden = false;
   busy = true; $('add-staff-product').disabled = true;
   notice('staff-workspace-message', 'Loading products…');
   try {
@@ -88,17 +89,19 @@ async function loadCategory(category) {
 }
 async function workspace() {
   $('staff-category-menu').open = false;
+  pwpAdmin.reset();
   selected = null; products = []; sha = null;
   $('staff-products').replaceChildren();
-  $('staff-category-title').textContent = 'Choose a category';
+  $('staff-category-title').textContent = '';
+  $('staff-category-title').closest('.staff-content-heading').hidden = true;
+  notice('staff-workspace-message', '');
   $('admin-home').hidden = true; $('staff-workspace').hidden = false;
   $('signed-in-as').textContent = 'Signed in as ' + username;
   $('add-staff-product').disabled = true; $('edit-staff-category').disabled = true;
   try {
     const data = await api('categories'); productCategories = data.categories; categoriesSha = data.sha;
     renderCategories();
-    notice('staff-workspace-message', 'Expand Categories and choose a category to view its products.');
-  } catch (error) {notice('staff-workspace-message', error.message, true);}
+  } catch (error) {pwpAdmin.showProducts(); notice('staff-workspace-message', error.message, true);}
 }
 function renderCategories() {
   $('staff-categories').replaceChildren(...productCategories.map(category => {

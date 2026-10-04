@@ -30,7 +30,9 @@ const {chromium}=require('playwright');const assert=require('node:assert/strict'
   await page.route('**/data/pwp-offers.json',r=>r.fulfill({json:{offers:[]}}));
   await page.route('https://ab-tech-catalogue-auth.johern20154.workers.dev/customer/**',r=>r.fulfill({headers,json:{configured:false}}));
   await page.goto('http://localhost:8080/admin/');await page.locator('#login-username').fill('staff');await page.locator('#login-password').fill('Camera1!');await page.locator('#staff-login').click();
-  await page.getByText('Expand Categories and choose a category to view its products.',{exact:true}).waitFor();
+  await page.locator('#staff-categories button[data-slug="cctv"]').waitFor({state:'attached'});
+  assert.equal(await page.locator('#staff-category-title').isVisible(),false);assert.equal(await page.locator('#staff-workspace-message').isVisible(),false);
+  assert.equal(await page.locator('#edit-staff-category').isVisible(),false);assert.equal(await page.locator('#add-staff-product').isVisible(),false);
   assert.equal(await page.locator('#staff-products').textContent(),'');assert.equal(categoryProductRequests,0);
   assert.equal(categoryListRequests,2);
   assert.equal(await page.locator('#staff-category-menu').getAttribute('open'),null);
