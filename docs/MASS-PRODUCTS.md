@@ -1,13 +1,17 @@
-# Mass Upload and Mass Edit
+# Products in Excel
 
-Open **Mass Upload / Edit** in the staff sidebar. Download the Excel template to add products, or export existing products for editing. Templates include Products, Categories and Instructions sheets.
+Open **Products in Excel** in the staff sidebar. Download existing products plus a template, or a blank template for new products. Both use the same import workflow.
 
-- Up to 250 rows across 20 categories per batch; existing 250-products-per-category limit still applies.
-- Select photos separately and match the Image Filename column. Photos are validated locally and uploaded only after Confirm & publish.
-- Mass Edit matches Category ID + Product ID. Neither identifier may be changed. Blank editable cells preserve current values. Omitted rows do not delete products. Version protects against stale exports.
-- Review shows every changed field. Errors block the whole batch. Unchanged rows are skipped.
-- The Worker revalidates products and category/product versions, then creates one Git tree/commit and advances main without force. A concurrent edit blocks publishing instead of overwriting it.
-- Image uploads happen before the product commit. If publishing fails, uploaded images can remain unused; live products are not partially updated. Reload and review before retrying an interrupted publish.
-- Existing gallery, legacy flags and fields not supported by the spreadsheet remain intact. PWP/promotion references and category visibility are not edited by this tool.
+The workbook contains Products, Categories, Column Guide, Examples and Instructions sheets. Only Products is imported. Real Excel dropdowns offer Add/Update, current category names, fixed/from/quote, and Yes/No. Header notes explain fields; IDs and versions are shaded as system values.
 
-The browser uses vendored SheetJS CE 0.20.3 from https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js under Apache-2.0. License: admin/vendor/SHEETJS-LICENSE.txt. Workbooks are parsed in a disposable worker with a 15-second timeout and bounded row/column limits. The feature generates its templates at runtime; it does not send spreadsheets to an external service.
+- Use **Add** for new rows. Leave Product ID and Version blank to generate a unique ID during review.
+- Use **Update** for existing rows. Keep Category, Product ID and Version unchanged.
+- There is no Skip action. Unchanged rows are detected automatically, counted in the preview and excluded from publishing. The backend also ignores no-op updates.
+- Blank editable cells keep existing values. Omitting rows does not delete products.
+- Select photos separately and match Image Filename. Blank Image Filename on Update keeps the current photo. Photos upload only after confirmation.
+- Up to 250 rows across 20 changed categories per batch; each category can contain 250 products. Export a category or remove untouched rows if a combined file would exceed the batch limit.
+- The Worker validates data and versions, merges additions and edits without removing unrelated products, and publishes changed category files together in one non-forced Git commit.
+- Image uploads precede the product commit. Interrupted batches may leave unused image files; reload and review before retrying. Product changes are atomic.
+- PWP/promotion settings, category visibility, galleries and unsupported fields are preserved.
+
+ExcelJS 4.4.0 generates the formatted workbook and validation lists (MIT license in admin/vendor/EXCELJS-LICENSE.txt). SheetJS CE 0.20.3 reads workbooks in a disposable worker with row/column limits and a 15-second timeout (Apache-2.0 license in admin/vendor/SHEETJS-LICENSE.txt). Both libraries are vendored locally; spreadsheets are not sent to a third-party service.

@@ -1,23 +1,30 @@
 export const columns=['Category ID','Product ID','Product Name','Model Number','Price (RM)','Price Type','Visible','New Arrival','Image Filename','Availability','Installation','Specifications','Version'];
+export const combinedColumns=['Action','Category',...columns.slice(1)];
+export function combinedExportRow(category,product,sha){const row=exportRow(category,product,sha);row[0]=category.name;return ['Update',...row];}
 export const editableFields=['name','description','price','price_mode','published','new_arrival','image','availability','installation','specifications'];
 const text=value=>String(value??'').trim();
 const bool=(value,fallback)=>!text(value)?fallback:/^(yes|true|1)$/i.test(text(value))?true:/^(no|false|0)$/i.test(text(value))?false:null;
 export function exportRow(category,product,sha){return [category.slug,product.id,product.name,product.description,product.price,product.price_mode,product.published?'Yes':'No',(product.new_arrival??product.example)?'Yes':'No','',product.availability,product.installation,(product.specifications||[]).join(' | '),sha];}
-export function reviewRows(rows,mode,catalogue,photos=new Map()){
+export function reviewRows(rows,batchMode,catalogue,photos=new Map()){
   const errors=[],items=[],seen=new Set(),counts=new Map();
   if(!rows.length||rows.length>250)return {errors:['Use 1–250 product rows per batch.'],items:[]};
   rows.forEach((values,index)=>{
-    const row=Object.fromEntries(columns.map((key,i)=>[key,text(values[i])])),line=index+2;
+    if(values.every(value=>!text(value)))return;
+    const row=Object.fromEntries((batchMode==='mixed'?combinedColumns:columns).map((key,i)=>[key,text(values[i])])),line=index+2;
     const fail=message=>errors.push('Row '+line+': '+message);
-    const group=catalogue.find(c=>c.slug===row['Category ID']);
-    if(!group){fail('Choose an existing Category ID from the Categories sheet.');return;}
-    const id=row['Product ID'],key=group.slug+':'+id;
+    const mode=batchMode==='mixed'?({add:'add',update:'edit'}[row.Action.toLowerCase()]):batchMode;
+    if(!mode){fail('Action must be Add or Update. Unchanged products are skipped automatically.');return;}
+    const group=catalogue.find(c=>batchMode==='mixed'?c.name===row.Category:c.slug===row['Category ID']);
+    if(!group){fail('Choose an existing Category from the Categories sheet.');return;}
+    if(mode==='add'&&row.Version){fail('For Add, leave Version blank. Use Update for existing rows.');return;}
+    const generated=batchMode==='mixed'&&mode==='add'&&!row['Product ID'];
+    const id=generated?'product-'+crypto.randomUUID():row['Product ID'],key=group.slug+':'+id;
     if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)||id.length>100){fail('Product ID needs lowercase letters, numbers and hyphens (maximum 100 characters).');return;}
     if(seen.has(key)){fail('Duplicate product ID in this category.');return;}seen.add(key);
     const original=group.products.find(p=>p.id===id);
-    if(mode==='add'&&original){fail('Product already exists. Use Mass Edit.');return;}
+    if(mode==='add'&&original){fail('Product already exists. Use Update.');return;}
     if(mode==='edit'&&!original){fail('Product not found. Do not change its Category ID or Product ID.');return;}
-    if(mode==='edit'&&row.Version!==group.sha){fail('This export is out of date. Download a fresh Mass Edit file.');return;}
+    if(mode==='edit'&&row.Version!==group.sha){fail('This export is out of date. Download a fresh products file.');return;}
     const defaults={id,category:group.name,name:'',description:'',price:0,price_mode:'fixed',published:true,new_arrival:false,image:'',availability:'Contact us to confirm availability',installation:'Installation quoted separately.',specifications:[],gallery:[],example:false};
     const product={...(original||defaults)};
     product.specifications=product.specifications||[];
@@ -49,7 +56,7 @@ export function reviewRows(rows,mode,catalogue,photos=new Map()){
       return JSON.stringify(product[field])!==JSON.stringify(previous);
     });
     if(mode==='add')counts.set(group.slug,(counts.get(group.slug)||0)+1);
-    items.push({line,slug:group.slug,product,original,photo,changes});
+    items.push({line,slug:group.slug,product,original,photo,changes,action:mode==='add'?'add':'update',generated});
   });
   for(const group of catalogue)if(group.products.length+(counts.get(group.slug)||0)>250)errors.push(group.name+' would exceed 250 products.');
   if(new Set(items.filter(i=>i.changes.length).map(i=>i.slug)).size>20)errors.push('Use at most 20 categories per batch.');

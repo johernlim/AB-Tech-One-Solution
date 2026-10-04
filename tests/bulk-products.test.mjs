@@ -51,3 +51,18 @@ test('Stale data, duplicates, existing IDs on add, invalid prices and new IDs on
  await withGit(async calls=>{assert.equal((await handleStaff(request(batch()),env)).status,409);assert.equal(calls.some(c=>c.method==='POST'),false);},{productSha:head});
  await withGit(async()=>{assert.equal((await handleStaff(request(batch()),env)).status,409);},{conflict:true});
 });
+import {combinedColumns,combinedExportRow} from '../admin/bulk-products-core.js';
+test('Combined rows add and update together; unchanged rows need no Skip action',()=>{
+ const existing=combinedExportRow(catalogue[0],product,sha);
+ let result=reviewRows([existing],'mixed',catalogue);assert.deepEqual(result.errors,[]);assert.equal(result.items[0].changes.length,0);
+ const edited=existing.slice();edited[5]=75;
+ const added=combinedColumns.map(c=>({Action:'Add',Category:'Alarm','Product Name':'New alarm','Model Number':'A2','Price (RM)':200,'Image Filename':'camera.png'}[c]??''));
+ result=reviewRows([edited,added],'mixed',catalogue,new Map([['camera.png',photo]]));assert.deepEqual(result.errors,[]);assert.equal(result.items[0].action,'update');assert.equal(result.items[1].action,'add');assert.match(result.items[1].product.id,/^product-/);assert.equal(result.items[1].generated,true);
+ const skip=existing.slice();skip[0]='Skip';assert.match(reviewRows([skip],'mixed',catalogue).errors[0],/Add or Update/);
+ const bad=added.slice();bad[13]=sha;assert.match(reviewRows([bad],'mixed',catalogue).errors[0],/Version blank/);
+});
+test('Combined backend commits mixed actions atomically, ignores no-ops, and rejects unknown actions',async()=>{
+ await withGit(async calls=>{const data={mode:'mixed',categoriesSha:registrySha,changes:[{slug:'cctv',sha,products:[{...product,price:80,action:'update'},{...product,id:'new-camera',action:'add'}]}]};const response=await handleStaff(request(data),env);assert.equal(response.status,200);assert.equal((await response.json()).count,2);const saved=JSON.parse(calls.find(c=>c.url.endsWith('/git/trees')).body.tree[0].content).products;assert.equal(saved.length,2);assert.equal(saved[0].price,80);assert.equal(saved[0].action,undefined);});
+ await withGit(async calls=>{const data=batch();data.mode='mixed';data.changes[0].products=[{...product,action:'update'}];assert.equal((await (await handleStaff(request(data),env)).json()).count,0);assert.equal(calls.some(c=>c.method==='POST'||c.method==='PATCH'),false);});
+ await withGit(async calls=>{const data=batch();data.mode='mixed';data.changes[0].products[0].action='skip';assert.equal((await handleStaff(request(data),env)).status,400);assert.equal(calls.some(c=>c.method==='POST'),false);});
+});
