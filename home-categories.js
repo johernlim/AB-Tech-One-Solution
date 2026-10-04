@@ -1,4 +1,4 @@
-import {loadCategories, renderCategoryCards} from './category-store.js';
+import {loadCategories, renderCategoryCards} from './category-store.js?v=visibility-1';
 const container = document.querySelector('#services .services-grid');
 try {
   const categories = await loadCategories();

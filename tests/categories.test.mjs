@@ -6,13 +6,13 @@ const category = {name: 'Smart Home', slug: 'smart-home', description: 'Connecte
 const existing = {name: 'CCTV Systems', slug: 'cctv', description: 'Cameras.', icon: 'cctv'};
 const env = {ALLOWED_ORIGIN: origin, GITHUB_REPO: 'johernlim/AB-Tech-One-Solution', STAFF_PASSWORD_PEPPER: 'p'.repeat(32), GITHUB_CATALOGUE_TOKEN: 'test-only-token', STAFF_DB: {prepare() {return {bind() {return this;}, async first() {return {id: 'user', username: 'staff'};}};}}};
 const request = (path, method, data, authenticated = true) => new Request('https://auth.test/staff/' + path, {method, headers: {Origin: origin, 'Content-Type': 'application/json', ...(authenticated ? {Authorization: 'Bearer ' + 'a'.repeat(64)} : {})}, ...(data ? {body: JSON.stringify(data)} : {})});
-async function withGit(run, {reserved = false, conflict = false} = {}) {
+async function withGit(run, {reserved = false, conflict = false, initialCategory = existing} = {}) {
   const original = globalThis.fetch, calls = [];
   globalThis.fetch = async (url, options = {}) => {
     assert.equal(options.headers.Authorization, 'Bearer test-only-token');
     const body = options.body ? JSON.parse(options.body) : null;
     calls.push({url, method: options.method || 'GET', body});
-    if (url.includes('/contents/data/categories.json?')) return Response.json({sha: 'b'.repeat(40), content: Buffer.from(JSON.stringify({categories: [existing]})).toString('base64')});
+    if (url.includes('/contents/data/categories.json?')) return Response.json({sha: 'b'.repeat(40), content: Buffer.from(JSON.stringify({categories: [initialCategory]})).toString('base64')});
     if (url.endsWith('/git/ref/heads/main')) return Response.json({object: {sha: 'c'.repeat(40)}});
     if (url.includes('/contents/data/categories/smart-home.json?')) return new Response('', {status: reserved ? 200 : 404});
     if (url.includes('/contents/data/categories/cctv.json?')) return Response.json({content: Buffer.from(JSON.stringify({products:[{id:'camera',category:existing.name,name:'Camera'}]})).toString('base64')});
@@ -82,4 +82,16 @@ test('Category editing keeps IDs fixed, checks conflicts and requires staff auth
     assert.equal((await handleStaff(request('categories/cctv','PATCH',{sha:'b'.repeat(40),category:{...existing,icon:'alarm',description:'Updated.'}}),env)).status,200);
     assert.deepEqual(calls.find(c=>c.url.endsWith('/git/trees')).body.tree.map(t=>t.path),['data/categories.json']);
   });
+});
+
+test('Visibility can hide and restore categories without rewriting products; editing preserves hidden state',async()=>{
+  for(const [initialCategory,patch,expected] of [[existing,{...existing,visible:false},false],[{...existing,visible:false},{...existing,visible:true},true],[{...existing,visible:false},{...existing,description:'Edited.'},false]]){
+    await withGit(async calls=>{
+      const response=await handleStaff(request('categories/cctv','PATCH',{sha:'b'.repeat(40),category:patch}),env);
+      assert.equal(response.status,200);assert.equal((await response.json()).categories[0].visible,expected);
+      assert.deepEqual(calls.find(c=>c.url.endsWith('/git/trees')).body.tree.map(t=>t.path),['data/categories.json']);
+    },{initialCategory});
+  }
+  await withGit(async()=>{assert.equal((await handleStaff(request('categories/cctv','PATCH',{sha:'b'.repeat(40),category:{...existing,visible:'false'}}),env)).status,400);});
+  await withGit(async()=>{const result=await handleStaff(request('categories','POST',{sha:'b'.repeat(40),category}),env);assert.equal((await result.json()).categories[1].visible,true);});
 });

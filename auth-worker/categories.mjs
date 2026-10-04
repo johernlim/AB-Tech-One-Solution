@@ -10,6 +10,7 @@ export function validCategory(category) {
     typeof category.slug === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(category.slug) && category.slug.length <= 64 &&
     typeof category.description === 'string' && category.description.trim().length > 0 && category.description.length <= 500 &&
     categoryIcons.includes(category.icon) && (!category.code || typeof category.code === 'string' && category.code.length <= 32) &&
+    (category.visible === undefined || typeof category.visible === 'boolean') &&
     (category.aliases === undefined || Array.isArray(category.aliases) && category.aliases.length <= 100 && category.aliases.every(name => typeof name === 'string' && name === name.trim() && name.length >= 2 && name.length <= 80));
 }
 export async function readCategories(env, ref = 'main') {
@@ -32,7 +33,7 @@ export async function changeCategories(env, user, method, slug, data) {
   const additions = [];
   if (method === 'POST') {
     if (!validCategory(data.category)) return json({error: 'Check the category name, description, ID and icon.'}, 400);
-    const category = {name: data.category.name, slug: data.category.slug, description: data.category.description, icon: data.category.icon, code: 'SYS / ' + data.category.slug.toUpperCase().slice(0, 24)};
+    const category = {name: data.category.name, slug: data.category.slug, description: data.category.description, icon: data.category.icon, visible: data.category.visible !== false, code: 'SYS / ' + data.category.slug.toUpperCase().slice(0, 24)};
     if (categories.length >= 50) return json({error: 'You can have up to 50 categories.'}, 400);
     if (categories.some(c => c.slug === category.slug || c.name.toLowerCase() === category.name.toLowerCase() || (c.aliases || []).some(name => name.toLowerCase() === category.name.toLowerCase()))) return json({error: 'This category name or ID already exists.'}, 409);
     const existing = await api(env, 'contents/data/categories/' + category.slug + '.json?ref=' + head);
@@ -46,7 +47,7 @@ export async function changeCategories(env, user, method, slug, data) {
     if (slug === 'pwp' && data.category.name !== previous.name) return json({error: 'Keep the dedicated PWP Products name. You can edit its description and icon.'}, 400);
     if (categories.some(c => c.slug !== slug && (c.name.toLowerCase() === data.category.name.toLowerCase() || (c.aliases || []).some(name => name.toLowerCase() === data.category.name.toLowerCase())))) return json({error: 'This category name is already in use.'}, 409);
     const renamed = previous.name !== data.category.name;
-    const category = {...previous, name: data.category.name, description: data.category.description, icon: data.category.icon};
+    const category = {...previous, name: data.category.name, description: data.category.description, icon: data.category.icon, visible: data.category.visible ?? previous.visible ?? true};
     if (renamed) {
       category.aliases = [...new Set([...(previous.aliases || []), previous.name])].filter(name => name !== category.name);
       if (category.aliases.length > 100) return json({error: 'This category has reached its rename history limit.'}, 400);

@@ -1,5 +1,5 @@
 import {setupCheckout} from './checkout.js?v=cart-design-1';
-import {loadCategories, currentCategoryName} from './category-store.js';
+import {loadCategories, currentCategoryName} from './category-store.js?v=visibility-1';
 import {loadPwpOffers, pwpChoices, PWP_CATEGORY, productKey} from './pwp.js?v=pwp-no-dates-1';
 import {loadPromotions,promotionLine} from './promotions.js?v=promotion-prices-1';
 let promotions=[];

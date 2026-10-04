@@ -7,7 +7,7 @@ export async function loadCategories() {
   if (!response.ok) throw new Error('Unable to load categories. Please refresh and try again.');
   const data = await response.json();
   if (!Array.isArray(data.categories)) throw new Error('Unable to load categories.');
-  return data.categories;
+  return data.categories.filter(category => category.visible !== false);
 }
 export function renderCategoryCards(container, categories) {
   const templates = new Map([...container.querySelectorAll('.service-card')].map(card => [card.querySelector('h3').textContent, card]));

@@ -8,6 +8,10 @@ let base, token, username, selected, products = [], sha, editing = -1, busy = fa
 const uploadedPhotoPreviews = new Map();
 const pwpAdmin = setupPwpAdmin(api, () => busy, value => busy = value);
 const promotionsAdmin = setupPromotionsAdmin(api, () => busy, value => busy = value);
+const visibilityControl=document.createElement('label');visibilityControl.className='category-visibility';
+visibilityControl.innerHTML='<span>Show category</span><input id="staff-category-visible" type="range" min="0" max="1" step="1" value="1" aria-label="Show category on website" aria-valuetext="On — Visible"><strong id="staff-category-visible-label">On</strong>';
+document.querySelector('.category-product-actions').prepend(visibilityControl);
+function renderCategoryVisibility(){const slider=$('staff-category-visible');slider.value=selected?.visible===false?'0':'1';slider.disabled=busy||!selected;slider.dataset.on=String(slider.value==='1');slider.setAttribute('aria-valuetext',slider.value==='1'?'On — Visible':'Off — Hidden');$('staff-category-visible-label').textContent=slider.value==='1'?'On':'Off';}
 function resetPhotoPreviews() {for (const url of uploadedPhotoPreviews.values()) URL.revokeObjectURL(url); uploadedPhotoPreviews.clear();}
 function renderProductPhotos() {
   const form = $('staff-product-form');
@@ -87,7 +91,7 @@ async function loadCategory(category) {
     $('staff-categories').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.slug === category.slug)));
     notice('staff-workspace-message', ''); render();
   } catch (error) { notice('staff-workspace-message', error.message, true); }
-  finally {busy = false; $('add-staff-product').disabled = !sha; $('edit-staff-category').disabled = !selected;}
+  finally {busy = false; $('add-staff-product').disabled = !sha; $('edit-staff-category').disabled = !selected;renderCategoryVisibility();}
 }
 async function workspace() {
   $('staff-category-menu').open = false;
@@ -108,9 +112,9 @@ async function workspace() {
 }
 function renderCategories() {
   $('staff-categories').replaceChildren(...productCategories.map(category => {
-    const button = node('button'); button.type = 'button'; button.dataset.slug = category.slug; button.setAttribute('aria-pressed', 'false');
+    const button = node('button'); button.type = 'button'; button.dataset.slug = category.slug; button.setAttribute('aria-pressed', String(selected?.slug===category.slug));
     const icon = node('img'); icon.src = new URL('../assets/category-icons/' + (category.icon || 'network') + '.svg', location.href).href; icon.alt = '';
-    button.append(icon, node('span', category.name)); button.addEventListener('click', () => loadCategory(category)); return button;
+    button.append(icon, node('span', category.name+(category.visible===false?' · Hidden':''))); button.addEventListener('click', () => loadCategory(category)); return button;
   }));
 }
 async function selectFirstCategory() {
@@ -147,6 +151,16 @@ async function upload(file) {
   return (await api('upload', {method: 'POST', body: JSON.stringify({type: file.type, content: data})})).path;
 }
 async function initialize() {
+  $('staff-category-visible').addEventListener('input',event=>{const on=event.target.value==='1';event.target.dataset.on=String(on);event.target.setAttribute('aria-valuetext',on?'On — Visible':'Off — Hidden');$('staff-category-visible-label').textContent=on?'On':'Off';});
+  $('staff-category-visible').addEventListener('change',async event=>{
+    if(busy||!selected){renderCategoryVisibility();return;}
+    const visible=event.target.value==='1';if(visible===(selected.visible!==false))return;
+    busy=true;event.target.disabled=true;$('add-staff-product').disabled=true;$('edit-staff-category').disabled=true;
+    notice('staff-workspace-message',visible?'Showing category and publishing…':'Hiding category and publishing…');
+    try{const result=await api('categories/'+selected.slug,{method:'PATCH',body:JSON.stringify({sha:categoriesSha,category:{...selected,visible}})});categoriesSha=result.sha;productCategories=result.categories;selected=productCategories.find(category=>category.slug===selected.slug);renderCategories();notice('staff-workspace-message',(visible?'Category is on. ':'Category is off. ')+result.message);}
+    catch(error){notice('staff-workspace-message',error.message,true);}
+    finally{busy=false;renderCategoryVisibility();$('add-staff-product').disabled=!sha;$('edit-staff-category').disabled=!selected;}
+  });
   function openCategory(category = null) {
     if (busy) return;
     categoryEditing = category; const form = $('staff-category-form'); form.reset();

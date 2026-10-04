@@ -1,6 +1,6 @@
 'use strict';
-import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js';
-import {addToCart} from './cart.js?v=cart-design-1';
+import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=visibility-1';
+import {addToCart} from './cart.js?v=visibility-1';
 import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';
 const promotions = await loadPromotions().catch(() => []);
 import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-no-dates-1';
