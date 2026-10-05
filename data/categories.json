@@ -75,7 +75,8 @@
       "slug": "pwp",
       "description": "Optional add-ons at special prices when bought with qualifying products. Browse normal prices here and unlock PWP prices in your cart.",
       "icon": "pos",
-      "code": "SHOP / PWP"
+      "code": "SHOP / PWP",
+      "visible": false
     }
   ]
 }
