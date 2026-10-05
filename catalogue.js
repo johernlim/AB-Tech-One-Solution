@@ -1,5 +1,5 @@
 'use strict';
-import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=instant-order-1';
+import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=no-category-labels-1';
 import {applyCategoryOrder, loadLiveCategoryOrder} from './category-order.js';
 import {addToCart} from './cart.js?v=category-icons-1';
 import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';

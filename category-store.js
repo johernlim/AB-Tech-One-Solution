@@ -18,14 +18,13 @@ export function renderCategoryCards(container, categories) {
     const card = templates.get(category.name)?.cloneNode(true) || document.createElement('article');
     card.className = 'service-card';
     if (!card.querySelector('h3')) {
-      const code = document.createElement('span'); code.className = 'service-code';
       const icon = document.createElement('img'); icon.className = 'service-icon'; icon.alt = ''; icon.width = icon.height = 42;
       const heading = document.createElement('h3'); heading.append(document.createElement('a'));
       const description = document.createElement('p');
       const link = document.createElement('a'); link.className = 'service-link'; link.textContent = 'Browse products ↗';
-      card.append(code, icon, heading, description, link);
+      card.append(icon, heading, description, link);
     }
-    card.querySelector('.service-code').textContent = category.code || 'SYS / ' + category.slug.toUpperCase();
+    card.querySelector('.service-code')?.remove();
     let icon = card.querySelector('.service-icon');
     if (icon && icon.tagName.toLowerCase() !== 'img') {
       const image = document.createElement('img'); image.className = 'service-icon'; image.alt = ''; image.width = image.height = 42;
