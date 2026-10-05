@@ -6,13 +6,13 @@ const category = {name: 'Smart Home', slug: 'smart-home', description: 'Connecte
 const existing = {name: 'CCTV Systems', slug: 'cctv', description: 'Cameras.', icon: 'cctv'};
 const env = {ALLOWED_ORIGIN: origin, GITHUB_REPO: 'johernlim/AB-Tech-One-Solution', STAFF_PASSWORD_PEPPER: 'p'.repeat(32), GITHUB_CATALOGUE_TOKEN: 'test-only-token', STAFF_DB: {prepare() {return {bind() {return this;}, async first() {return {id: 'user', username: 'staff'};}};}}};
 const request = (path, method, data, authenticated = true) => new Request('https://auth.test/staff/' + path, {method, headers: {Origin: origin, 'Content-Type': 'application/json', ...(authenticated ? {Authorization: 'Bearer ' + 'a'.repeat(64)} : {})}, ...(data ? {body: JSON.stringify(data)} : {})});
-async function withGit(run, {reserved = false, conflict = false, initialCategory = existing} = {}) {
+async function withGit(run, {reserved = false, conflict = false, initialCategory = existing, initialCategories = [initialCategory]} = {}) {
   const original = globalThis.fetch, calls = [];
   globalThis.fetch = async (url, options = {}) => {
     assert.equal(options.headers.Authorization, 'Bearer test-only-token');
     const body = options.body ? JSON.parse(options.body) : null;
     calls.push({url, method: options.method || 'GET', body});
-    if (url.includes('/contents/data/categories.json?')) return Response.json({sha: 'b'.repeat(40), content: Buffer.from(JSON.stringify({categories: [initialCategory]})).toString('base64')});
+    if (url.includes('/contents/data/categories.json?')) return Response.json({sha: 'b'.repeat(40), content: Buffer.from(JSON.stringify({categories: initialCategories})).toString('base64')});
     if (url.endsWith('/git/ref/heads/main')) return Response.json({object: {sha: 'c'.repeat(40)}});
     if (url.includes('/contents/data/categories/smart-home.json?')) return new Response('', {status: reserved ? 200 : 404});
     if (url.includes('/contents/data/categories/cctv.json?')) return Response.json({content: Buffer.from(JSON.stringify({products:[{id:'camera',category:existing.name,name:'Camera'}]})).toString('base64')});
@@ -41,6 +41,31 @@ test('Authenticated category add creates the list and empty product file in one 
     assert.deepEqual(calls.find(c => c.url.endsWith('/git/commits')).body.parents, ['c'.repeat(40)]);
     assert.equal(calls.at(-1).body.force, false);
   });
+});
+test('Reordering publishes only the registry and preserves hidden categories and metadata', async () => {
+  const wifi = {...category, slug:'wifi', name:'WiFi Solutions', visible:false, aliases:['Wireless']};
+  await withGit(async calls => {
+    const response = await handleStaff(request('categories', 'PATCH', {sha:'b'.repeat(40), order:['wifi','cctv']}), env);
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).categories, [wifi, existing]);
+    assert.deepEqual(JSON.parse(Buffer.from(calls.find(c=>c.url.endsWith('/git/blobs')).body.content, 'base64')).categories, [wifi, existing]);
+    assert.deepEqual(calls.find(c=>c.url.endsWith('/git/trees')).body.tree.map(t=>t.path), ['data/categories.json']);
+    assert.equal(calls.at(-1).body.force, false);
+  }, {initialCategories:[existing,wifi]});
+});
+test('Invalid, unauthenticated, stale and concurrent reorder requests cannot overwrite categories', async () => {
+  assert.equal((await handleStaff(request('categories','PATCH',{sha:'b'.repeat(40),order:['cctv']},false),env)).status,401);
+  for (const order of [null, [], ['unknown'], ['cctv','cctv'], [123]]) {
+    await withGit(async calls=>{
+      assert.equal((await handleStaff(request('categories','PATCH',{sha:'b'.repeat(40),order}),env)).status,400);
+      assert.equal(calls.some(c=>c.method==='POST'||c.method==='PATCH'),false);
+    });
+  }
+  await withGit(async calls=>{
+    assert.equal((await handleStaff(request('categories','PATCH',{sha:'a'.repeat(40),order:['cctv']}),env)).status,409);
+    assert.equal(calls.some(c=>c.method==='POST'||c.method==='PATCH'),false);
+  });
+  await withGit(async()=>assert.equal((await handleStaff(request('categories','PATCH',{sha:'b'.repeat(40),order:['cctv']}),env)).status,409),{conflict:true});
 });
 test('Removing a category updates only the shared list and preserves product files', async () => {
   await withGit(async calls => {

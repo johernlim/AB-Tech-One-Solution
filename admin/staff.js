@@ -1,6 +1,7 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {showCategoryIcon} from '../category-icon.js';
 import {setupCategoryIconEditor} from './category-icon-editor.js';
+import {setupCategoryOrdering} from './category-ordering.js';
 import {setupBulkProducts} from './bulk-products.js?v=mass-upload-1';
 import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
 import {setupPromotionsAdmin} from './promotions-admin.js?v=promotion-prices-1';
@@ -122,6 +123,29 @@ function renderCategories() {
     const icon = node('img'); showCategoryIcon(icon, category.icon); icon.alt = '';
     button.append(icon, node('span', category.name+(category.visible===false?' · Hidden':''))); button.addEventListener('click', () => loadCategory(category)); return button;
   }));
+  setupCategoryOrdering($('staff-categories'), () => busy, saveCategoryOrder);
+}
+async function saveCategoryOrder(order, focusSlug) {
+  if (busy || order.every((slug, index) => slug === productCategories[index]?.slug)) return;
+  const previous = productCategories;
+  productCategories = order.map(slug => previous.find(category => category.slug === slug));
+  busy = true;
+  renderCategories(); renderCategoryVisibility();
+  $('add-staff-product').disabled = true; $('edit-staff-category').disabled = true;
+  notice('staff-category-order-message', 'Saving category order…');
+  try {
+    const result = await api('categories', {method:'PATCH', body:JSON.stringify({sha:categoriesSha, order})});
+    productCategories = result.categories; categoriesSha = result.sha;
+    if (selected) selected = productCategories.find(category => category.slug === selected.slug);
+    notice('staff-category-order-message', 'Order saved. ' + result.message);
+  } catch (error) {
+    productCategories = previous;
+    notice('staff-category-order-message', error.message, true);
+  } finally {
+    busy = false; renderCategories(); renderCategoryVisibility();
+    $('add-staff-product').disabled = !sha; $('edit-staff-category').disabled = !selected;
+    [...$('staff-categories').children].find(button => button.dataset.slug === focusSlug)?.focus({preventScroll:true});
+  }
 }
 async function selectFirstCategory() {
   selected = null; products = []; sha = null;

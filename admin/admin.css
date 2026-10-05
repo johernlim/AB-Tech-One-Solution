@@ -62,6 +62,10 @@ body{min-height:100vh}#nc-root a[class*="GridCardLink"][href*="/entries/"]{heigh
 @media(max-width:600px){.pwp-choice,.pwp-offer-card{align-items:stretch;flex-direction:column}.pwp-addon-price{max-width:none}.pwp-admin form{padding:16px}.pwp-picker{padding:12px}}
 /* Categories expand on demand; native details supports mouse and keyboard. */
 #staff-category-menu{margin-bottom:20px}
+.category-order-help{font-size:11px;color:var(--muted);margin:10px 0}
+#staff-category-order-message:empty{display:none}
+#staff-categories .category-drag-handle{cursor:grab;touch-action:none;font-size:20px;flex-shrink:0;color:var(--mint);padding:6px 2px}
+#staff-categories .category-dragging{opacity:.55;border-color:var(--mint);cursor:grabbing}
 #staff-category-menu summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;padding:13px 14px;border:1px solid var(--line);border-radius:8px;color:var(--mint);background:#20303960;cursor:pointer;font-size:14px;font-weight:600}
 #staff-category-menu summary::-webkit-details-marker{display:none}
 #staff-category-menu .category-chevron{transition:transform .15s ease}

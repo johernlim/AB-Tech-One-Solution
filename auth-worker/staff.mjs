@@ -150,6 +150,7 @@ export async function handleStaff(request, env) {
     if (url.pathname === '/staff/categories' && request.method === 'GET') return json(await readCategories(env));
     if (url.pathname === '/staff/bulk-products' && request.method === 'POST') return publishBulk(env,user,await body(request,2000000),validateProducts);
     if (url.pathname === '/staff/categories' && request.method === 'POST') return changeCategories(env, user, 'POST', null, await body(request));
+    if (url.pathname === '/staff/categories' && request.method === 'PATCH') return changeCategories(env, user, 'REORDER', null, await body(request));
     const categorySlug = url.pathname.match(/^\/staff\/categories\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
     if (categorySlug && request.method === 'PATCH') return changeCategories(env, user, 'PATCH', categorySlug, await body(request));
     if (categorySlug && request.method === 'DELETE') return changeCategories(env, user, 'DELETE', categorySlug, await body(request));

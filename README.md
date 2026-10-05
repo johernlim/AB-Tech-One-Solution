@@ -43,6 +43,8 @@ Run `node tests/cart-browser.cjs` with the local preview running to verify cart 
 
 ## Category management
 
+Drag a category or its dotted handle in the admin sidebar to change its position. Dropping saves and publishes the order automatically; keyboard users can focus a category and press Alt + Up / Down. The homepage and catalogue use that shared order after deployment. Failed saves restore the previous order and display an error. Deploy the updated staff Worker to enable category ordering.
+
 Each category, including newly added categories, has **Edit category**. Staff can change its name, description and icon; **Remove category** is inside the edit dialog. Category IDs stay fixed. Renaming updates the registry, product category names and PWP offer references in one GitHub commit, while old category links and saved carts resolve through name aliases. The dedicated PWP category keeps its required name and cannot be removed, but its description and icon can be edited.
 
 The staff workspace has Add category and Remove category controls. Categories are stored in `data/categories.json` and shared by the homepage, catalogue, contact service selector and cart. Adding a category publishes that list together with an empty product file in one GitHub commit. Removing a category hides it from public browsing and keeps its product file for recovery. Removed category IDs cannot be reused accidentally. Changes appear after Cloudflare deployment. The Worker must deploy the updated `auth-worker` code as well as the static site.
