@@ -31,11 +31,7 @@ export async function changeCategories(env, user, method, slug, data) {
   if (current.sha !== data.sha) return json({error: 'Categories changed since you opened them. Reload the list and try again.'}, 409);
   let categories = current.categories;
   const additions = [];
-  if (method === 'REORDER') {
-    const order = data.order;
-    if (!Array.isArray(order) || order.length !== categories.length || new Set(order).size !== categories.length || order.some(slug => typeof slug !== 'string' || !categories.some(category => category.slug === slug))) return json({error: 'Include every category exactly once when changing the order.'}, 400);
-    categories = order.map(slug => categories.find(category => category.slug === slug));
-  } else if (method === 'POST') {
+  if (method === 'POST') {
     if (!validCategory(data.category)) return json({error: 'Check the category name, description, ID and icon.'}, 400);
     const category = {name: data.category.name, slug: data.category.slug, description: data.category.description, icon: data.category.icon, visible: data.category.visible !== false, code: 'SYS / ' + data.category.slug.toUpperCase().slice(0, 24)};
     if (categories.length >= 50) return json({error: 'You can have up to 50 categories.'}, 400);
@@ -90,7 +86,7 @@ export async function changeCategories(env, user, method, slug, data) {
   const treeResponse = await api(env, 'git/trees', {method: 'POST', body: JSON.stringify({base_tree: baseTree, tree: [{path: 'data/categories.json', mode: '100644', type: 'blob', sha: registrySha}, ...additions]})});
   if (!treeResponse.ok) return json({error: 'Could not prepare category files.'}, 502);
   const treeSha = (await treeResponse.json()).sha;
-  const newCommitResponse = await api(env, 'git/commits', {method: 'POST', body: JSON.stringify({message: (method === 'REORDER' ? 'Reorder categories' : (method === 'POST' ? 'Add ' + data.category.name : method === 'PATCH' ? 'Edit ' + data.category.name : 'Remove ' + slug) + ' category') + ' by ' + user.username, tree: treeSha, parents: [head]})});
+  const newCommitResponse = await api(env, 'git/commits', {method: 'POST', body: JSON.stringify({message: (method === 'POST' ? 'Add ' + data.category.name : method === 'PATCH' ? 'Edit ' + data.category.name : 'Remove ' + slug) + ' category by ' + user.username, tree: treeSha, parents: [head]})});
   if (!newCommitResponse.ok) return json({error: 'Could not create the category update.'}, 502);
   const newCommit = (await newCommitResponse.json()).sha;
   const update = await api(env, 'git/refs/heads/main', {method: 'PATCH', body: JSON.stringify({sha: newCommit, force: false})});

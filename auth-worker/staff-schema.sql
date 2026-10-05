@@ -16,3 +16,8 @@ CREATE TABLE IF NOT EXISTS staff_attempts (
   count INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS category_order (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  order_json TEXT NOT NULL,
+  version INTEGER NOT NULL
+);

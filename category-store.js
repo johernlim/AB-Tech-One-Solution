@@ -1,15 +1,16 @@
 import {prepareCategoryLinks} from './category-preload.js';
 import {showCategoryIcon} from './category-icon.js';
+import {applyCategoryOrder, loadLiveCategoryOrder} from './category-order.js';
 const root = new URL('.', import.meta.url);
 export function currentCategoryName(name, categories) {
   return categories.find(category => category.name === name || (category.aliases || []).includes(name))?.name || name;
 }
 export async function loadCategories() {
-  const response = await fetch(new URL('data/categories.json', root), {cache: 'no-store'});
+  const [response, order] = await Promise.all([fetch(new URL('data/categories.json', root), {cache:'no-store'}), loadLiveCategoryOrder()]);
   if (!response.ok) throw new Error('Unable to load categories. Please refresh and try again.');
   const data = await response.json();
   if (!Array.isArray(data.categories)) throw new Error('Unable to load categories.');
-  return data.categories.filter(category => category.visible !== false);
+  return applyCategoryOrder(data.categories.filter(category => category.visible !== false), order);
 }
 export function renderCategoryCards(container, categories) {
   const templates = new Map([...container.querySelectorAll('.service-card')].map(card => [card.querySelector('h3').textContent, card]));

@@ -1,12 +1,13 @@
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {showCategoryIcon} from '../category-icon.js';
+import {applyCategoryOrder} from '../category-order.js';
 import {setupCategoryIconEditor} from './category-icon-editor.js';
 import {setupCategoryOrdering} from './category-ordering.js';
 import {setupBulkProducts} from './bulk-products.js?v=mass-upload-1';
 import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
 import {setupPromotionsAdmin} from './promotions-admin.js?v=promotion-prices-1';
 const $ = id => document.getElementById(id);
-let productCategories = [], categoriesSha;
+let productCategories = [], categoriesSha, orderVersion = 0;
 let categoryEditing = null;
 let base, token, username, selected, products = [], sha, editing = -1, busy = false;
 const uploadedPhotoPreviews = new Map();
@@ -113,7 +114,7 @@ async function workspace() {
   $('signed-in-as').textContent = 'Signed in as ' + username;
   $('add-staff-product').disabled = true; $('edit-staff-category').disabled = true;
   try {
-    const data = await api('categories'); productCategories = data.categories; categoriesSha = data.sha;
+    const data = await api('categories'); productCategories = data.categories; categoriesSha = data.sha; orderVersion = data.orderVersion ?? 0;
     renderCategories();
   } catch (error) {pwpAdmin.showProducts(); notice('staff-workspace-message', error.message, true);}
 }
@@ -134,8 +135,8 @@ async function saveCategoryOrder(order, focusSlug) {
   $('add-staff-product').disabled = true; $('edit-staff-category').disabled = true;
   notice('staff-category-order-message', 'Saving category order…');
   try {
-    const result = await api('categories', {method:'PATCH', body:JSON.stringify({sha:categoriesSha, order})});
-    productCategories = result.categories; categoriesSha = result.sha;
+    const result = await api('categories', {method:'PATCH', body:JSON.stringify({sha:categoriesSha, order, orderVersion})});
+    productCategories = result.categories; categoriesSha = result.sha; orderVersion = result.orderVersion;
     if (selected) selected = productCategories.find(category => category.slug === selected.slug);
     notice('staff-category-order-message', 'Order saved. ' + result.message);
   } catch (error) {
@@ -187,7 +188,7 @@ async function initialize() {
     const visible=event.target.value==='1';if(visible===(selected.visible!==false))return;
     busy=true;event.target.disabled=true;$('add-staff-product').disabled=true;$('edit-staff-category').disabled=true;
     notice('staff-workspace-message',visible?'Showing category and publishing…':'Hiding category and publishing…');
-    try{const result=await api('categories/'+selected.slug,{method:'PATCH',body:JSON.stringify({sha:categoriesSha,category:{...selected,visible}})});categoriesSha=result.sha;productCategories=result.categories;selected=productCategories.find(category=>category.slug===selected.slug);renderCategories();notice('staff-workspace-message',(visible?'Category is on. ':'Category is off. ')+result.message);}
+    try{const result=await api('categories/'+selected.slug,{method:'PATCH',body:JSON.stringify({sha:categoriesSha,category:{...selected,visible}})});categoriesSha=result.sha;productCategories=applyCategoryOrder(result.categories,productCategories.map(c=>c.slug));selected=productCategories.find(category=>category.slug===selected.slug);renderCategories();notice('staff-workspace-message',(visible?'Category is on. ':'Category is off. ')+result.message);}
     catch(error){notice('staff-workspace-message',error.message,true);}
     finally{busy=false;renderCategoryVisibility();$('add-staff-product').disabled=!sha;$('edit-staff-category').disabled=!selected;}
   });
@@ -221,7 +222,7 @@ async function initialize() {
     busy = true; $('publish-staff-category').disabled = true; notice('staff-category-message', categoryEditing ? 'Updating category and publishing…' : 'Adding category and publishing…');
     try {
       const result = await api(categoryEditing ? 'categories/' + categoryEditing.slug : 'categories', {method: categoryEditing ? 'PATCH' : 'POST', body: JSON.stringify({sha: categoriesSha, category})});
-      productCategories = result.categories; categoriesSha = result.sha; renderCategories();
+      productCategories = applyCategoryOrder(result.categories,productCategories.map(c=>c.slug)); categoriesSha = result.sha; renderCategories();
       $('staff-category-dialog').close(); busy = false;
       await loadCategory(productCategories.find(c => c.slug === category.slug));
       $('edit-staff-category').disabled = false; notice('staff-workspace-message', result.message);
@@ -233,7 +234,7 @@ async function initialize() {
     busy = true; $('remove-staff-category').disabled = true; $('publish-staff-category').disabled = true; notice('staff-category-message', 'Removing category and publishing…');
     try {
       const result = await api('categories/' + categoryEditing.slug, {method: 'DELETE', body: JSON.stringify({sha: categoriesSha})});
-      productCategories = result.categories; categoriesSha = result.sha; renderCategories(); busy = false;
+      productCategories = applyCategoryOrder(result.categories,productCategories.map(c=>c.slug)); categoriesSha = result.sha; renderCategories(); busy = false;
       $('staff-category-dialog').close();
       await selectFirstCategory(); notice('staff-workspace-message', result.message);
     } catch (error) {notice('staff-category-message', error.message, true);}

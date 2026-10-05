@@ -1,5 +1,6 @@
 'use strict';
-import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=preload-1';
+import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=instant-order-1';
+import {applyCategoryOrder, loadLiveCategoryOrder} from './category-order.js';
 import {addToCart} from './cart.js?v=category-icons-1';
 import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';
 
@@ -7,7 +8,7 @@ import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=p
 
 const hasPwp = product => pwpOffers.some(offer => activeOffer(offer) && offer.qualifiers.includes(productKey(product)));
 const snapshot = JSON.parse(document.getElementById('catalogue-snapshot')?.textContent || 'null');
-const [promotions, pwpOffers, productCategories] = snapshot ? [snapshot.promotions, snapshot.offers, snapshot.categories] : await Promise.all([
+const [promotions, pwpOffers, productCategories] = snapshot ? [snapshot.promotions, snapshot.offers, applyCategoryOrder(snapshot.categories, await loadLiveCategoryOrder())] : await Promise.all([
   loadPromotions().catch(() => []),
   loadPwpOffers().catch(() => []),
   loadCategories().catch(() => {document.getElementById('load-error').hidden = false; return [];})

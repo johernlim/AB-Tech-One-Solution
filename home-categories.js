@@ -1,4 +1,4 @@
-import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=preload-1';
+import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=instant-order-1';
 window.homeCategoriesReady = (async () => {
 const container = document.querySelector('#services .services-grid');
 try {

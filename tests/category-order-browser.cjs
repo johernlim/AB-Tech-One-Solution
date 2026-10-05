@@ -18,7 +18,9 @@ const server = http.createServer((req,res)=>{
   try {
     const page=await browser.newPage({viewport:{width:1440,height:1100}}), errors=[];
     page.on('pageerror',error=>errors.push(error.message));
-    let categories=JSON.parse(fs.readFileSync('data/categories.json')).categories, fail=false, saves=0;
+    let categories=JSON.parse(fs.readFileSync('data/categories.json')).categories.sort((a,b)=>(a.slug==='cctv'?-1:0)-(b.slug==='cctv'?-1:0)), fail=false, saves=0;
+    const publishedCategories=structuredClone(categories);
+    let savedOrder=[], orderVersion=0;
     const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type,Authorization','Access-Control-Allow-Methods':'GET,POST,PATCH,OPTIONS'};
     await page.route('**/staff/**',async route=>{
       const req=route.request(), pathname=new URL(req.url()).pathname;
@@ -27,14 +29,17 @@ const server = http.createServer((req,res)=>{
       if(pathname==='/staff/categories'){
         if(req.method()==='PATCH'){
           saves++; assert.equal(req.postDataJSON().sha,'a'.repeat(40));
+          assert.equal(req.postDataJSON().orderVersion,orderVersion);
           if(fail)return route.fulfill({status:409,headers,json:{error:'Categories changed. Reload and try again.'}});
           categories=req.postDataJSON().order.map(slug=>categories.find(c=>c.slug===slug));
+          savedOrder=req.postDataJSON().order;orderVersion++;
         }
-        return route.fulfill({headers,json:{categories,sha:'a'.repeat(40),message:'Homepage updates after deployment.'}});
+        return route.fulfill({headers,json:{categories,sha:'a'.repeat(40),orderVersion,message:'Refresh the homepage to see the new order immediately.'}});
       }
       return route.fulfill({headers,json:{configured:true,loginConfigured:true,products:[],sha:'b'.repeat(40)}});
     });
-    await page.route('**/data/categories.json',route=>route.fulfill({json:{categories}}));
+    await page.route('**/data/categories.json',route=>route.fulfill({json:{categories:publishedCategories}}));
+    await page.route('**/public/category-order',route=>route.fulfill({headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'no-store'},json:{order:savedOrder}}));
     await page.goto(base+'/admin/');
     await page.locator('#login-username').fill('staff');await page.locator('#login-password').fill('Camera1!');await page.locator('#staff-login').click();
     await page.locator('#staff-categories button').first().waitFor({state:'attached'});
@@ -68,7 +73,14 @@ const server = http.createServer((req,res)=>{
     await page.goto(base+'/');await page.evaluate(()=>window.homeCategoriesReady);
     assert.equal(await page.locator('.service-card h3').first().textContent(),'WiFi Solutions');
     assert.deepEqual(await page.locator('.service-card h3').allTextContents(),categories.filter(c=>c.visible!==false).map(c=>c.name));
+    // Deployment data stays unchanged; each refresh must use the latest database order.
+    savedOrder=publishedCategories.map(c=>c.slug);await page.reload();await page.evaluate(()=>window.homeCategoriesReady);
+    assert.equal(await page.locator('.service-card h3').first().textContent(),publishedCategories[0].name);
+    savedOrder=categories.map(c=>c.slug);
+    await page.goto(base+'/catalogue.html');
+    await page.locator('.catalogue-categories .service-card').first().waitFor();
+    assert.equal(await page.locator('.catalogue-categories h3').first().textContent(),'WiFi Solutions');
     assert.deepEqual(errors,[]);
-    console.log('Drag, pointer handle, touch drag, keyboard, failure rollback, mobile layout and homepage order passed.');
+    console.log('Drag, touch, keyboard, rollback and immediate homepage refresh without deployment passed.');
   } finally {await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

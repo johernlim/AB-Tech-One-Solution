@@ -1,4 +1,5 @@
 import {readCategories, changeCategories} from './categories.mjs';
+import {readOrderedCategories, saveCategoryOrder} from './category-order.mjs';
 import {publishBulk} from './bulk.mjs';
 import {readPwp, pwpCatalogue, publishPwp} from './pwp.mjs';
 import {readPromotions, publishPromotions} from './promotions.mjs';
@@ -147,10 +148,10 @@ export async function handleStaff(request, env) {
     if (url.pathname === '/staff/promotions' && request.method === 'PUT') return publishPromotions(env,user,await body(request,750000));
     if (url.pathname === '/staff/pwp' && request.method === 'GET') return json({...await readPwp(env), products: await pwpCatalogue(env)});
     if (url.pathname === '/staff/pwp' && request.method === 'PUT') return publishPwp(env, user, await body(request, 750000));
-    if (url.pathname === '/staff/categories' && request.method === 'GET') return json(await readCategories(env));
+    if (url.pathname === '/staff/categories' && request.method === 'GET') return json(await readOrderedCategories(env));
     if (url.pathname === '/staff/bulk-products' && request.method === 'POST') return publishBulk(env,user,await body(request,2000000),validateProducts);
     if (url.pathname === '/staff/categories' && request.method === 'POST') return changeCategories(env, user, 'POST', null, await body(request));
-    if (url.pathname === '/staff/categories' && request.method === 'PATCH') return changeCategories(env, user, 'REORDER', null, await body(request));
+    if (url.pathname === '/staff/categories' && request.method === 'PATCH') return saveCategoryOrder(env, await body(request));
     const categorySlug = url.pathname.match(/^\/staff\/categories\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
     if (categorySlug && request.method === 'PATCH') return changeCategories(env, user, 'PATCH', categorySlug, await body(request));
     if (categorySlug && request.method === 'DELETE') return changeCategories(env, user, 'DELETE', categorySlug, await body(request));

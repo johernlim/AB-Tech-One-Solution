@@ -42,31 +42,6 @@ test('Authenticated category add creates the list and empty product file in one 
     assert.equal(calls.at(-1).body.force, false);
   });
 });
-test('Reordering publishes only the registry and preserves hidden categories and metadata', async () => {
-  const wifi = {...category, slug:'wifi', name:'WiFi Solutions', visible:false, aliases:['Wireless']};
-  await withGit(async calls => {
-    const response = await handleStaff(request('categories', 'PATCH', {sha:'b'.repeat(40), order:['wifi','cctv']}), env);
-    assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).categories, [wifi, existing]);
-    assert.deepEqual(JSON.parse(Buffer.from(calls.find(c=>c.url.endsWith('/git/blobs')).body.content, 'base64')).categories, [wifi, existing]);
-    assert.deepEqual(calls.find(c=>c.url.endsWith('/git/trees')).body.tree.map(t=>t.path), ['data/categories.json']);
-    assert.equal(calls.at(-1).body.force, false);
-  }, {initialCategories:[existing,wifi]});
-});
-test('Invalid, unauthenticated, stale and concurrent reorder requests cannot overwrite categories', async () => {
-  assert.equal((await handleStaff(request('categories','PATCH',{sha:'b'.repeat(40),order:['cctv']},false),env)).status,401);
-  for (const order of [null, [], ['unknown'], ['cctv','cctv'], [123]]) {
-    await withGit(async calls=>{
-      assert.equal((await handleStaff(request('categories','PATCH',{sha:'b'.repeat(40),order}),env)).status,400);
-      assert.equal(calls.some(c=>c.method==='POST'||c.method==='PATCH'),false);
-    });
-  }
-  await withGit(async calls=>{
-    assert.equal((await handleStaff(request('categories','PATCH',{sha:'a'.repeat(40),order:['cctv']}),env)).status,409);
-    assert.equal(calls.some(c=>c.method==='POST'||c.method==='PATCH'),false);
-  });
-  await withGit(async()=>assert.equal((await handleStaff(request('categories','PATCH',{sha:'b'.repeat(40),order:['cctv']}),env)).status,409),{conflict:true});
-});
 test('Removing a category updates only the shared list and preserves product files', async () => {
   await withGit(async calls => {
     const response = await handleStaff(request('categories/cctv', 'DELETE', {sha: 'b'.repeat(40)}), env);

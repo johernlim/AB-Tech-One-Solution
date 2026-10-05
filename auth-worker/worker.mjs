@@ -1,5 +1,6 @@
 import {handleStaff} from './staff.mjs';
 import {handleCustomer} from './customer.mjs';
+import {publicCategoryOrder} from './category-order.mjs';
 const cookieName = '__Host-abtech_oauth_state';
 const clearCookie = `${cookieName}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 const baseHeaders = {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff'};
@@ -28,6 +29,7 @@ function popup(origin, payload, status = 'success') {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/public/category-order') return publicCategoryOrder(request, env);
     if (url.pathname.startsWith('/customer/')) return handleCustomer(request, env);
     if (url.pathname.startsWith('/staff/')) return handleStaff(request, env);
     if (request.method !== 'GET') return message('Method not allowed.', 405);
