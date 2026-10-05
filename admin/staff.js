@@ -3,7 +3,7 @@ import {showCategoryIcon} from '../category-icon.js';
 import {applyCategoryOrder} from '../category-order.js';
 import {setupCategoryIconEditor} from './category-icon-editor.js';
 import {setupCategoryOrdering} from './category-ordering.js';
-import {setupBulkProducts} from './bulk-products.js?v=mass-upload-1';
+import {setupBulkProducts} from './bulk-products.js?v=identity-guard-1';
 import {setupPwpAdmin} from './pwp-admin.js?v=blank-workspace-1';
 import {setupPromotionsAdmin} from './promotions-admin.js?v=promotion-prices-1';
 const $ = id => document.getElementById(id);

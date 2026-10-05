@@ -1,5 +1,23 @@
 export const columns=['Category ID','Product ID','Product Name','Model Number','Price (RM)','Price Type','Visible','New Arrival','Image Filename','Availability','Installation','Specifications','Version'];
 export const combinedColumns=['Action','Category',...columns.slice(1)];
+export const referenceColumn='Row Reference';
+export function validateRowReferences(rows,identities){
+  const errors=[],seen=new Set();
+  const originals=new Map(identities.map(row=>[text(row[0]),row]));
+  rows.forEach((row,index)=>{
+    if(row.every(value=>!text(value)))return;
+    const ref=text(row[14]),original=originals.get(ref);
+    const fail=message=>errors.push('Row '+(index+2)+': '+message);
+    if(ref){
+      if(!original||seen.has(ref)){fail('Invalid or duplicate row reference. Download a fresh template.');return;}
+      seen.add(ref);
+      if([1,2,13].some(col=>text(row[col])!==text(original[col])))fail('Existing Category, Product ID or Version changed. Rename Product IDs in admin; download a fresh file afterwards.');
+    }else if(text(row[13])||identities.some(original=>text(original[1])===text(row[1])&&text(original[2])===text(row[2]))){
+      fail('Existing product is missing its row reference. Download a fresh file and keep the existing rows.');
+    }
+  });
+  return errors;
+}
 export function combinedExportRow(category,product,sha){const row=exportRow(category,product,sha);row[0]=category.name;return ['Skip',...row];}
 export const editableFields=['name','description','price','price_mode','published','new_arrival','image','availability','installation','specifications'];
 const text=value=>String(value??'').trim();

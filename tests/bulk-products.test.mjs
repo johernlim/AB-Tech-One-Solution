@@ -1,13 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {handleStaff} from '../auth-worker/staff.mjs';
-import {columns,reviewRows,exportRow} from '../admin/bulk-products-core.js';
+import {columns,reviewRows,exportRow,validateRowReferences} from '../admin/bulk-products-core.js';
 const sha='a'.repeat(40),head='b'.repeat(40),registrySha='c'.repeat(40);
 const product={id:'camera',category:'CCTV',name:'Camera',description:'Model 1',price:100,price_mode:'fixed',image:'assets/products/cctv.svg',published:true,example:false,new_arrival:false,availability:'Available',installation:'Quoted',specifications:['One'],gallery:['assets/products/cctv.svg'],custom:'preserve'};
 const categories=[{slug:'cctv',name:'CCTV',description:'Cameras',icon:'cctv',visible:false},{slug:'alarm',name:'Alarm',description:'Alarms',icon:'alarm'}];
 const catalogue=categories.map(c=>({...c,sha,products:c.slug==='cctv'?[product]:[]}));
 const row=values=>columns.map(c=>values[c]??'');
 const photo={file:{name:'camera.png'}};
+test('Excel row references reject renamed IDs, cleared versions, wrong targets and missing references while omissions are harmless',()=>{
+ const base=combinedExportRow(catalogue[0],product,sha),reference=['ref-camera',...base.slice(1)],existing=[...base,'ref-camera'];
+ assert.deepEqual(validateRowReferences([existing],[reference]),[]);
+ for(const change of [{2:'renamed'},{2:'other-product'},{2:'renamed',13:''},{1:'Alarm'},{13:''},{14:''},{14:'unknown'}]){
+   const row=existing.slice();for(const [col,value] of Object.entries(change))row[col]=value;
+   assert.ok(validateRowReferences([row],[reference]).length);
+ }
+ assert.deepEqual(validateRowReferences([],[reference]),[]);
+ assert.deepEqual(validateRowReferences([['','Alarm','my-new-id','New product']],[reference]),[]);
+ assert.ok(validateRowReferences([existing,existing],[reference]).length);
+});
 test('New rows validate images, IDs, prices, booleans and defaults',()=>{
  const valid=row({'Category ID':'alarm','Product ID':'new-alarm','Product Name':'New alarm','Model Number':'A1','Price (RM)':20,'Image Filename':'camera.png'});
  let result=reviewRows([valid],'add',catalogue,new Map([['camera.png',photo]]));assert.deepEqual(result.errors,[]);assert.equal(result.items[0].product.published,true);assert.equal(result.items[0].product.new_arrival,false);
