@@ -6,15 +6,17 @@ const path=require('node:path');
 (async()=>{
   const {renderCatalogue}=await import('../catalogue-render.mjs');
   const template=await fs.readFile('catalogue.html','utf8');
-  const categories=[{name:'CCTV Systems',slug:'cctv',description:'Cameras.',icon:'cctv'},{name:'WiFi Solutions',slug:'wifi',description:'WiFi.',icon:'wifi'}];
+  const categories=[{name:'CCTV Systems',slug:'cctv',description:'Cameras.',icon:'cctv'},{name:'WiFi Solutions',slug:'wifi',description:'WiFi.',icon:'wifi'},{name:'Smart Home',slug:'smart-home',description:'Newly added category.',icon:'network'}];
   let count=36;
   const products=Array.from({length:36},(_,i)=>({id:'camera-'+(i+1),name:'Camera '+String(i+1).padStart(2,'0'),category:i<24?'CCTV Systems':'WiFi Solutions',description:'Camera model',image:'assets/products/cctv.svg',price:i+1,price_mode:'fixed',published:true,example:false,specifications:[],availability:'Available',installation:'Quoted separately'}));
   const server=http.createServer(async(req,res)=>{
     const url=new URL(req.url,'http://localhost');
     try{
       if(url.pathname==='/catalogue.html'){
-        const snapshot={categories,products:products.slice(0,count),promotions:[],offers:[]};
-        res.setHeader('Content-Type','text/html');return res.end(renderCatalogue(template,snapshot,null,new Date(),url.searchParams.get('page')||1));
+        const selected=categories.find(c=>c.name===url.searchParams.get('category'));
+        const categoryProducts=selected?.slug==='smart-home'?Array.from({length:19},(_,i)=>({...products[i],category:selected.name})):products.slice(0,count).filter(p=>!selected||p.category===selected.name);
+        const snapshot={categories,products:categoryProducts,promotions:[],offers:[]};
+        res.setHeader('Content-Type','text/html');return res.end(renderCatalogue(template,snapshot,selected,new Date(),url.searchParams.get('page')||1));
       }
       const file=path.join(process.cwd(),url.pathname);
       res.setHeader('Content-Type',({'.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.json':'application/json'})[path.extname(file)]||'application/octet-stream');
@@ -44,7 +46,7 @@ const path=require('node:path');
     await page.locator('#search').fill('');assert.equal(await page.locator('.product-title-button').first().textContent(),'Camera 01');
     await page.getByRole('link',{name:'Page 3',exact:true}).click();await page.locator('#sort').selectOption('price-low');assert.equal(await page.locator('.product-title-button').first().textContent(),'Camera 01');
     await page.getByRole('link',{name:'Page 3',exact:true}).click();await page.locator('#category-filters').getByRole('button',{name:'WiFi Solutions',exact:true}).click();
-    assert.equal(await page.locator('#products .product-card').count(),12);assert.equal(await page.locator('#product-pagination').isVisible(),false);
+    assert.equal(await page.locator('#products .product-card').count(),9);assert.equal(await pageButtons().count(),2);
     await page.locator('#category-filters').getByRole('button',{name:'All products',exact:true}).click();
     const gap=await page.evaluate(()=>document.querySelector('.catalogue-heading').getBoundingClientRect().top-document.querySelector('.header').getBoundingClientRect().bottom+scrollY);assert.ok(gap<=40);
     await fs.mkdir('.preview',{recursive:true});await page.screenshot({path:'.preview/catalogue-pagination-desktop.png',fullPage:true});
@@ -53,6 +55,16 @@ const path=require('node:path');
     const plain=await browser.newContext({javaScriptEnabled:false}),plainPage=await plain.newPage();
     await plainPage.goto(base+'/catalogue.html?view=all&page=2');assert.equal(await plainPage.locator('.product-card').count(),12);assert.equal(await plainPage.locator('.product-title-button').first().textContent(),'Camera 13');assert.equal(await plainPage.locator('#product-pagination a[aria-label^="Page "]').count(),3);await plain.close();
     await page.goto(base+'/catalogue.html?view=all&page=99');await ready();assert.equal(await page.locator('.product-title-button').first().textContent(),'Camera 25');
-    assert.deepEqual(errors,[]);console.log('12/24/36/25/0 products, page links, search/filter/sort resets, server rendering and mobile layout passed.');
+    for(const [category,total] of [['CCTV Systems',24],['WiFi Solutions',12],['Smart Home',19]]){
+      await page.goto(base+'/catalogue.html?category='+encodeURIComponent(category));await ready();
+      assert.equal(await page.locator('#products .product-card').count(),9);assert.equal(await pageButtons().count(),Math.ceil(total/9));
+      await page.getByRole('link',{name:'Page '+Math.ceil(total/9),exact:true}).click();assert.equal(await page.locator('#products .product-card').count(),total%9||9);
+      await page.reload();await ready();assert.equal(await page.locator('#products .product-card').count(),total%9||9);
+      await page.locator('#search').fill('nonexistent');assert.equal(await pageButtons().count(),0);
+      await page.locator('#search').fill('');assert.equal(await page.locator('#products .product-card').count(),9);
+    }
+    const noJS=await browser.newContext({javaScriptEnabled:false}),categoryPage=await noJS.newPage();
+    await categoryPage.goto(base+'/catalogue.html?category=CCTV%20Systems&page=2');assert.equal(await categoryPage.locator('.product-card').count(),9);assert.equal(await categoryPage.locator('.product-title-button').first().textContent(),'Camera 10');await noJS.close();
+    assert.deepEqual(errors,[]);console.log('12-product All view, 9-product existing/new categories, page reload, search resets, server rendering and mobile layout passed.');
   }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

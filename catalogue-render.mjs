@@ -1,6 +1,6 @@
 import {promotionFor} from './promotions.js';
 import {activeOffer, productKey, PWP_CATEGORY} from './pwp.js';
-import {paginateProducts, paginationMarkup} from './catalogue-pagination.js';
+import {paginateProducts, paginationMarkup, productsPerPage, categoryProductsPerPage} from './catalogue-pagination.js';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = new Intl.NumberFormat('en-MY',{style:'currency',currency:'MYR',minimumFractionDigits:0,maximumFractionDigits:2});
 const exact = new Intl.NumberFormat('en-MY',{style:'currency',currency:'MYR',minimumFractionDigits:2,maximumFractionDigits:2});
@@ -13,7 +13,7 @@ export function productMarkup(product,index,promotions,offers,now=new Date()) {
 }
 export function renderCatalogue(template,snapshot,selected,now=new Date(),requestedPage=1) {
   const title=selected?.name||'All products', products=snapshot.products;
-  const paged=paginateProducts(products,requestedPage);
+  const paged=paginateProducts(products,requestedPage,selected?categoryProductsPerPage:productsPerPage);
   const content=(id,text)=>{const re=new RegExp('(<([a-z0-9]+)[^>]* id="'+id+'"[^>]*>)[\\s\\S]*?(</\\2>)');template=template.replace(re,(_,open,tag,close)=>open+escape(text)+close);};
   template=template.replace('<html lang="en">','<html lang="en" data-server-catalogue="true">');
   template=template.replace('<title>Product Catalogue | AB Tech One Solution</title>',`<title>${escape(title)} | AB Tech One Solution</title>`);

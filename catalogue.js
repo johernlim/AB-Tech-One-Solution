@@ -1,7 +1,7 @@
 'use strict';
 import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=no-category-labels-1';
 import {applyCategoryOrder, loadLiveCategoryOrder} from './category-order.js';
-import {paginateProducts, paginationMarkup} from './catalogue-pagination.js';
+import {paginateProducts, paginationMarkup, productsPerPage, categoryProductsPerPage} from './catalogue-pagination.js?v=category-pages-1';
 import {addToCart} from './cart.js?v=category-icons-1';
 import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';
 
@@ -168,7 +168,7 @@ function render() {
   const categoryCard = [...document.querySelectorAll('.catalogue-categories .service-card')].find(card => card.querySelector('h3').textContent === category);
   document.getElementById('catalogue-page-description').textContent = categoryCard ? categoryCard.querySelector('p').textContent : 'Explore all our products, or choose a category below.';
   document.getElementById('total-count').textContent = products.filter(p => category === 'All products' || p.category === category).length;
-  const paged = paginateProducts(visible, currentPage); currentPage = paged.page;
+  const paged = paginateProducts(visible, currentPage, category === 'All products' ? productsPerPage : categoryProductsPerPage); currentPage = paged.page;
   document.getElementById('result-count').textContent = visible.length ? `Showing ${paged.start + 1}–${paged.start + paged.products.length} of ${visible.length} product${visible.length === 1 ? '' : 's'}` : '0 products';
   grid.replaceChildren(...paged.products.map(card));
   pagination.innerHTML = paginationMarkup(paged.page, paged.pages, page => {

@@ -1,10 +1,11 @@
 export const productsPerPage = 12;
-export function paginateProducts(products, requestedPage = 1) {
-  const pages = Math.ceil(products.length / productsPerPage);
+export const categoryProductsPerPage = 9;
+export function paginateProducts(products, requestedPage = 1, pageSize = productsPerPage) {
+  const pages = Math.ceil(products.length / pageSize);
   const requested = Number(requestedPage);
   const page = Math.min(Math.max(Number.isSafeInteger(requested) ? requested : 1, 1), Math.max(pages, 1));
-  const start = (page - 1) * productsPerPage;
-  return {page, pages, start, products:products.slice(start, start + productsPerPage)};
+  const start = (page - 1) * pageSize;
+  return {page, pages, start, products:products.slice(start, start + pageSize)};
 }
 export function paginationMarkup(page, pages, pageURL) {
   if (pages <= 1) return '';
