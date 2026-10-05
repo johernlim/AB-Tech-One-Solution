@@ -1,18 +1,18 @@
 {
   "categories": [
     {
-      "name": "CCTV Systems",
-      "slug": "cctv",
-      "description": "HD & IP camera installation with remote viewing, night vision and recorded footage from your phone.",
-      "icon": "cctv",
-      "code": "SYS / CCTV"
-    },
-    {
       "name": "Alarm Systems",
       "slug": "alarm",
       "description": "Intrusion alarms with motion sensors and instant alerts to your phone or a monitoring centre.",
       "icon": "alarm",
       "code": "SYS / ALM"
+    },
+    {
+      "name": "CCTV Systems",
+      "slug": "cctv",
+      "description": "HD & IP camera installation with remote viewing, night vision and recorded footage from your phone.",
+      "icon": "cctv",
+      "code": "SYS / CCTV"
     },
     {
       "name": "Door Access Control",
