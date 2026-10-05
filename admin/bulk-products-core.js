@@ -20,7 +20,7 @@ export function reviewRows(rows,batchMode,catalogue,photos=new Map()){
     if(mode==='add'&&row.Version){fail('For Add, leave Version blank. Use Update for existing rows.');return;}
     const generated=batchMode==='mixed'&&mode==='add'&&!row['Product ID'];
     const id=generated?'product-'+crypto.randomUUID():row['Product ID'],key=group.slug+':'+id;
-    if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)||id.length>100){fail('Product ID needs lowercase letters, numbers and hyphens (maximum 100 characters).');return;}
+    if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)||id.length>80){fail('Product ID needs lowercase letters, numbers and hyphens (maximum 80 characters).');return;}
     if(seen.has(key)){fail('Duplicate product ID in this category.');return;}seen.add(key);
     const original=group.products.find(p=>p.id===id);
     if(mode==='add'&&original){fail('Product already exists. Use Update.');return;}

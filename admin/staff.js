@@ -157,9 +157,9 @@ async function selectFirstCategory() {
     $('add-staff-product').disabled = true; notice('staff-workspace-message', 'Add a category to start adding products.');
   }
 }
-async function publish(nextProducts) {
-  const result = await api('categories/' + selected.slug, {method: 'PUT', body: JSON.stringify({sha, products: nextProducts})});
-  sha = result.sha; products = nextProducts; render(); notice('staff-workspace-message', result.message);
+async function publish(nextProducts, rename = null) {
+  const result = await api('categories/' + selected.slug + (rename ? '/products/' + rename.from : ''), {method:rename ? 'PATCH' : 'PUT', body:JSON.stringify(rename ? {sha,product:rename.product} : {sha,products:nextProducts})});
+  sha = result.sha; products = result.products || nextProducts; render(); notice('staff-workspace-message', result.message);
 }
 function editProduct(index) {
   if (busy || !sha) return;
@@ -302,10 +302,11 @@ async function initialize() {
     const product = {...products[editing], ...Object.fromEntries(['id', 'name', 'description', 'image', 'price_mode', 'installation', 'availability'].map(field => [field, String(data.get(field)).trim()])), price: Number(data.get('price')), category: selected.name, published: form.elements.published.checked, example: products[editing]?.example ?? false, new_arrival: form.elements.new_arrival.checked};
     product.specifications = String(data.get('specifications')).split('\n').map(value => value.trim()).filter(Boolean);
     product.gallery = products[editing]?.gallery || [];
-    if (products.some((existing, index) => index !== editing && existing.id === product.id)) {notice('staff-product-message', 'That product ID is already used in this category.', true); return;}
+    if (products.some((existing, index) => index !== editing && existing.id === product.id || (existing.id_aliases || []).includes(product.id))) {notice('staff-product-message', 'That product ID is already used or reserved by a previous ID. Choose another ID.', true); return;}
     const next = [...products]; if (editing < 0) next.push(product); else next[editing] = product;
     busy = true; $('publish-staff-product').disabled = true; notice('staff-product-message', 'Publishing…');
-    try {await publish(next); $('staff-product-dialog').close();} catch (error) {notice('staff-product-message', error.message, true);} finally {busy = false; $('publish-staff-product').disabled = false;}
+    const rename=editing>=0&&products[editing].id!==product.id?{from:products[editing].id,product}:null;
+    try {await publish(next,rename); $('staff-product-dialog').close();} catch (error) {notice('staff-product-message', error.message, true);} finally {busy = false; $('publish-staff-product').disabled = false;}
   });
   try {
     const response = await fetch('settings.json', {cache: 'no-store'}); if (!response.ok) throw new Error();

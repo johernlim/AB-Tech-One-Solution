@@ -1,4 +1,5 @@
 export const categoryIcons = ['cctv', 'alarm', 'door-access', 'computers', 'pos', 'network', 'wifi', 'servers', 'software', 'signage'];
+import {reconcileProductAliases} from './product-identities.mjs';
 const encoder = new TextEncoder();
 function api(env, path, options = {}) {
   return fetch('https://api.github.com/repos/' + env.GITHUB_REPO + '/' + path, {...options, headers: {Authorization: 'Bearer ' + env.GITHUB_CATALOGUE_TOKEN, Accept: 'application/vnd.github+json', 'User-Agent': 'AB-Tech-Staff', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'}});
@@ -31,6 +32,7 @@ export async function changeCategories(env, user, method, slug, data) {
   if (current.sha !== data.sha) return json({error: 'Categories changed since you opened them. Reload the list and try again.'}, 409);
   let categories = current.categories;
   const additions = [];
+  let renamedProducts;
   if (method === 'POST') {
     if (!validCategory(data.category)) return json({error: 'Check the category name, description, ID and icon.'}, 400);
     const category = {name: data.category.name, slug: data.category.slug, description: data.category.description, icon: data.category.icon, visible: data.category.visible !== false, code: 'SYS / ' + data.category.slug.toUpperCase().slice(0, 24)};
@@ -54,6 +56,7 @@ export async function changeCategories(env, user, method, slug, data) {
       const productResponse = await api(env, 'contents/data/categories/' + slug + '.json?ref=' + head);
       if (!productResponse.ok) return json({error: 'Could not load this category’s products.'}, 502);
       const productData = JSON.parse(decode((await productResponse.json()).content));
+      renamedProducts = productData.products.map(p => ({...p, category:category.name}));
       additions.push({path: 'data/categories/' + slug + '.json', mode: '100644', type: 'blob', content: JSON.stringify({...productData, products: productData.products.map(p => ({...p, category: category.name}))}, null, 2) + '\n'});
       const offerResponse = await api(env, 'contents/data/pwp-offers.json?ref=' + head);
       if (!offerResponse.ok && offerResponse.status !== 404) return json({error: 'Could not update PWP category references.'}, 502);
@@ -92,5 +95,6 @@ export async function changeCategories(env, user, method, slug, data) {
   const update = await api(env, 'git/refs/heads/main', {method: 'PATCH', body: JSON.stringify({sha: newCommit, force: false})});
   if ([409, 422].includes(update.status)) return json({error: 'The website changed during publishing. Reload categories and try again.'}, 409);
   if (!update.ok) return json({error: 'Could not publish the category update.'}, 502);
+  if (renamedProducts?.some(product=>product.id_aliases?.length)) await reconcileProductAliases(env,categories.find(category=>category.slug===slug),renamedProducts);
   return json({categories, sha: registrySha, message: 'Published to GitHub. The homepage and catalogue will update after deployment.'}, method === 'POST' ? 201 : 200);
 }

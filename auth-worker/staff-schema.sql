@@ -21,3 +21,12 @@ CREATE TABLE IF NOT EXISTS category_order (
   order_json TEXT NOT NULL,
   version INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS product_id_aliases (
+  category_slug TEXT NOT NULL,
+  old_id TEXT NOT NULL,
+  new_id TEXT NOT NULL,
+  category_names TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('pending','active')),
+  PRIMARY KEY(category_slug,old_id)
+);
+CREATE INDEX IF NOT EXISTS product_id_alias_lookup ON product_id_aliases(old_id,state);

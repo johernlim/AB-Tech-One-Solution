@@ -2,7 +2,7 @@
 import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=no-category-labels-1';
 import {applyCategoryOrder, loadLiveCategoryOrder} from './category-order.js';
 import {paginateProducts, paginationMarkup, productsPerPage, categoryProductsPerPage} from './catalogue-pagination.js?v=category-pages-1';
-import {addToCart} from './cart.js?v=category-icons-1';
+import {addToCart} from './cart.js?v=product-id-rename-1';
 import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';
 
 import {loadPwpOffers, activeOffer, productKey, PWP_CATEGORY} from './pwp.js?v=pwp-no-dates-1';

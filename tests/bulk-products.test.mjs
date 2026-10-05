@@ -23,7 +23,7 @@ test('Edit exports round trip, blank fields preserve data, changed prices previe
  values[12]=sha;values[1]='renamed';assert.match(reviewRows([values],'edit',catalogue).errors[0],/not found/);
 });
 const origin='https://ab-tech-one-solution.pages.dev';
-const env={ALLOWED_ORIGIN:origin,GITHUB_REPO:'owner/repo',GITHUB_CATALOGUE_TOKEN:'test',STAFF_PASSWORD_PEPPER:'p'.repeat(32),STAFF_DB:{prepare(){return{bind(){return this;},async first(){return{id:'staff',username:'staff'};}};}}};
+const env={ALLOWED_ORIGIN:origin,GITHUB_REPO:'owner/repo',GITHUB_CATALOGUE_TOKEN:'test',STAFF_PASSWORD_PEPPER:'p'.repeat(32),STAFF_DB:{prepare(){return{bind(){return this;},async run(){return{};},async first(){return{id:'staff',username:'staff'};}};}}};
 const request=(data,authenticated=true)=>new Request('https://test/staff/bulk-products',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',...(authenticated?{Authorization:'Bearer '+'a'.repeat(64)}:{})},body:JSON.stringify(data)});
 async function withGit(run,{conflict=false,productSha=sha}={}){
  const original=globalThis.fetch,calls=[];

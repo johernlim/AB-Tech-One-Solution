@@ -15,7 +15,9 @@ let currentCategories = [];
 function normalizedItems(source) {
   const merged = new Map();
   for (const item of source) {
-    const next = {...item, category: currentCategoryName(item.category, currentCategories)}, key = keyOf(next);
+    const next = {...item, category: currentCategoryName(item.category, currentCategories)};
+    next.id = catalogue?.get(keyOf(next))?.id || next.id;
+    const key = keyOf(next);
     const previous = merged.get(key);
     if (previous) previous.quantity = Math.min(999, previous.quantity + next.quantity); else merged.set(key, next);
   }
@@ -91,7 +93,10 @@ async function loadCatalogue() {
     if (!response.ok) throw new Error('Unable to load cart prices. Please try again.');
     const data = await response.json();
     return data.products.filter(p => p.published === true).map(p => ({...p, category: name}));
-  }));}).then(groups => catalogue = new Map(groups.flat().map(p => [keyOf(p), p]))).finally(() => pending = null);
+  }));}).then(groups => {
+    catalogue = new Map(groups.flat().flatMap(product => [product.id,...(product.id_aliases || [])].map(id => [keyOf({...product,id}),product])));
+    items = normalizedItems(items); updateCount(); return catalogue;
+  }).finally(() => pending = null);
   return pending;
 }
 function render() {

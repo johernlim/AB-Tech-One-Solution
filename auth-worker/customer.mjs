@@ -3,6 +3,7 @@ import {passwordHash, normalizeUsername, validUsername, reserveAttempt, releaseA
 import {validPassword, passwordRequirement} from '../password-policy.js';
 import {normalizeGmail, validGmail, gmailKey, gmailError, profileError, normalizeShippingAddress, shippingAddressError} from '../customer-validation.js';
 import {firebaseConfigured, firebaseLogin, firebaseEnsure, firebaseResetEmail, firebaseRefresh, firebaseClaims, firebaseSessionUser, sealFirebaseToken, openFirebaseToken} from './firebase.mjs';
+import {productAliasSchema, productAliasIndexSchema, saveCartWithProductIds} from './product-identities.mjs';
 const encoder = new TextEncoder();
 const hex = bytes => Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
 const random = () => hex(crypto.getRandomValues(new Uint8Array(32)));
@@ -10,6 +11,8 @@ const digest = async value => hex(await crypto.subtle.digest('SHA-256', encoder.
 const equal = (a, b) => {if (a.length !== b.length) return false; let difference = 0; for (let i = 0; i < a.length; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i); return difference === 0;};
 const json = (value, status = 200) => Response.json(value, {status, headers: {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}});
 const schemas = [
+  productAliasSchema,
+  productAliasIndexSchema,
   'CREATE TABLE IF NOT EXISTS customer_users (id TEXT PRIMARY KEY,username TEXT NOT NULL UNIQUE COLLATE NOCASE,salt TEXT NOT NULL,password_hash TEXT NOT NULL,created_at INTEGER NOT NULL,cart_json TEXT NOT NULL DEFAULT \'[]\',cart_version INTEGER NOT NULL DEFAULT 0)',
   'CREATE TABLE IF NOT EXISTS customer_sessions (token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES customer_users(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL)',
   'CREATE INDEX IF NOT EXISTS customer_sessions_expiry ON customer_sessions(expires_at)',
@@ -228,9 +231,9 @@ export async function handleCustomer(request, env) {
       const data = await body(request);
       if (!validCart(data.items) || !Number.isInteger(data.version) || data.version < 0) return json({error: 'Check your cart items and quantities.'}, 400);
       const items = data.items.map(({id, category, quantity}) => ({id, category, quantity}));
-      const result = await env.STAFF_DB.prepare('UPDATE customer_users SET cart_json=?,cart_version=cart_version+1 WHERE id=? AND cart_version=? RETURNING cart_version').bind(JSON.stringify(items), user.id, data.version).first();
+      const result = await saveCartWithProductIds(env.STAFF_DB,user.id,items,data.version);
       if (!result) return json({error: 'Your cart changed in another tab. Please try again.'}, 409);
-      return json({items, version: result.cart_version});
+      return json({items:JSON.parse(result.cart_json), version: result.cart_version});
     }
     return json({error: 'Not found.'}, 404);
   };

@@ -1,4 +1,5 @@
 import {readCategories} from './categories.mjs';
+import {reservedProductId} from './product-identities.mjs';
 const json = (data,status=200) => Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const fields = ['name','description','price','price_mode','image','published','new_arrival','availability','installation','specifications'];
 async function git(env,path,options={}) {
@@ -33,6 +34,7 @@ export async function publishBulk(env,user,data,validateProducts) {
         if(index<0)products.push(product);else products[index]=product;count++;changed=true;
       }
       if(!validateProducts(products,category.name))return json({error:'Invalid product data or more than 250 products in '+category.name+'.'},400);
+      if(await reservedProductId(env,category.slug,products.map(product=>product.id)))return json({error:'A Product ID in '+category.name+' is reserved by a previous ID. Choose another ID.'},409);
       if(changed)tree.push({path:'data/categories/'+category.slug+'.json',mode:'100644',type:'blob',content:JSON.stringify({...source,products},null,2)+'\n'});
     }
     if(!count)return json({count:0,message:'No changes found. Unchanged products were skipped.'});

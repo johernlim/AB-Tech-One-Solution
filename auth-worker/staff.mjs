@@ -1,5 +1,7 @@
 import {readCategories, changeCategories} from './categories.mjs';
 import {readOrderedCategories, saveCategoryOrder} from './category-order.mjs';
+import {renameProduct} from './product-rename.mjs';
+import {reconcileProductAliases, reservedProductId} from './product-identities.mjs';
 import {publishBulk} from './bulk.mjs';
 import {readPwp, pwpCatalogue, publishPwp} from './pwp.mjs';
 import {readPromotions, publishPromotions} from './promotions.mjs';
@@ -69,6 +71,14 @@ const encodeContent = text => {
 const decodeContent = value => new TextDecoder().decode(Uint8Array.from(atob(value.replace(/\s/g, '')), character => character.charCodeAt(0)));
 export function validateProducts(products, category) {
   if (!Array.isArray(products) || products.length > 250) return false;
+  const identities = new Set();
+  for (const product of products) {
+    if (!product || product.id_aliases !== undefined && (!Array.isArray(product.id_aliases) || product.id_aliases.length > 100)) return false;
+    for (const id of [product.id,...(product.id_aliases || [])]) {
+      if (typeof id !== 'string' || id.length > 80 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || identities.has(id)) return false;
+      identities.add(id);
+    }
+  }
   const ids = new Set();
   const image = value => typeof value === 'string' && /^assets\/(products|uploads)\/[a-zA-Z0-9_. -]+$/.test(value) && !value.includes('..');
   return products.every(p => {
@@ -152,6 +162,8 @@ export async function handleStaff(request, env) {
     if (url.pathname === '/staff/bulk-products' && request.method === 'POST') return publishBulk(env,user,await body(request,2000000),validateProducts);
     if (url.pathname === '/staff/categories' && request.method === 'POST') return changeCategories(env, user, 'POST', null, await body(request));
     if (url.pathname === '/staff/categories' && request.method === 'PATCH') return saveCategoryOrder(env, await body(request));
+    const productIdentity = url.pathname.match(/^\/staff\/categories\/([a-z0-9]+(?:-[a-z0-9]+)*)\/products\/([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+    if (productIdentity && request.method === 'PATCH') return renameProduct(env,user,productIdentity[1],productIdentity[2],await body(request,750000),validateProducts);
     const categorySlug = url.pathname.match(/^\/staff\/categories\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
     if (categorySlug && request.method === 'PATCH') return changeCategories(env, user, 'PATCH', categorySlug, await body(request));
     if (categorySlug && request.method === 'DELETE') return changeCategories(env, user, 'DELETE', categorySlug, await body(request));
@@ -160,11 +172,14 @@ export async function handleStaff(request, env) {
       const response = await github(env, 'data/categories/' + category.slug + '.json?ref=main');
       if (!response.ok) return json({error: 'Could not load products from GitHub.'}, 502);
       const file = await response.json();
-      return json({sha: file.sha, products: JSON.parse(decodeContent(file.content)).products});
+      const products=JSON.parse(decodeContent(file.content)).products;
+      if(products.some(product=>product.id_aliases?.length))await reconcileProductAliases(env,category,products);
+      return json({sha: file.sha, products});
     }
     if (category && request.method === 'PUT') {
       const data = await body(request, 750000);
       if (!/^[a-f0-9]{40}$/.test(data.sha || '') || !validateProducts(data.products, category.name)) return json({error: 'Check the product fields, unique product IDs and image paths before publishing.'}, 400);
+      if(await reservedProductId(env,category.slug,data.products.map(product=>product.id)))return json({error:'A Product ID is reserved by a previous ID. Choose another ID.'},409);
       const response = await github(env, 'data/categories/' + category.slug + '.json', {method: 'PUT', body: JSON.stringify({message: 'Update ' + category.name + ' products by ' + user.username, branch: 'main', sha: data.sha, content: encodeContent(JSON.stringify({products: data.products}, null, 2) + '\n')})});
       if ([409, 422].includes(response.status)) return json({error: 'These products changed since you opened them. Reload this category before publishing.'}, 409);
       if (!response.ok) return json({error: 'GitHub could not publish these changes. Please try again.'}, 502);
