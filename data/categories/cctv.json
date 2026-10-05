@@ -45,6 +45,22 @@
       "published": true,
       "example": true,
       "new_arrival": false
+    },
+    {
+      "id": "test",
+      "name": "test",
+      "description": "test",
+      "image": "assets/uploads/3a4e1bcf-e3a5-46b0-b3d8-ffc7a7ce3a1c.png",
+      "price_mode": "fixed",
+      "installation": "Installation quoted separately.",
+      "availability": "Contact us to confirm availability",
+      "price": 9999,
+      "category": "CCTV Systems",
+      "published": false,
+      "example": false,
+      "new_arrival": false,
+      "specifications": [],
+      "gallery": []
     }
   ]
 }
