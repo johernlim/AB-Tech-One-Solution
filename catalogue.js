@@ -1,6 +1,7 @@
 'use strict';
 import {loadCategories, renderCategoryCards, currentCategoryName} from './category-store.js?v=no-category-labels-1';
 import {applyCategoryOrder, loadLiveCategoryOrder} from './category-order.js';
+import {paginateProducts, paginationMarkup} from './catalogue-pagination.js';
 import {addToCart} from './cart.js?v=category-icons-1';
 import {loadPromotions,promotionFor} from './promotions.js?v=promotion-prices-1';
 
@@ -26,6 +27,8 @@ const browsingProducts = hasCategory || params.get('view') === 'all';
 if (params.has('category') && !hasCategory) document.getElementById('catalogue-page-description').textContent = 'That category is no longer available. Browse our current categories below.';
 let category = hasCategory ? params.get('category') : 'All products';
 let products = [];
+let currentPage = new URLSearchParams(location.search).get('page') || 1;
+const pagination = document.getElementById('product-pagination');
 const grid = document.getElementById('products');
 const search = document.getElementById('search');
 const sort = document.getElementById('sort');
@@ -66,7 +69,9 @@ function filters() {
     button.setAttribute('aria-pressed', String(name === category));
     button.addEventListener('click', () => {
       category = name;
+      currentPage = 1;
       const url = new URL(location.href);
+      url.searchParams.delete('page');
       if (category === 'All products') { url.searchParams.delete('category'); url.searchParams.set('view', 'all'); }
       else { url.searchParams.set('category', category); url.searchParams.delete('view'); }
       history.replaceState(null, '', url);
@@ -163,13 +168,34 @@ function render() {
   const categoryCard = [...document.querySelectorAll('.catalogue-categories .service-card')].find(card => card.querySelector('h3').textContent === category);
   document.getElementById('catalogue-page-description').textContent = categoryCard ? categoryCard.querySelector('p').textContent : 'Explore all our products, or choose a category below.';
   document.getElementById('total-count').textContent = products.filter(p => category === 'All products' || p.category === category).length;
-  document.getElementById('result-count').textContent = `${visible.length} product${visible.length === 1 ? '' : 's'}`;
-  grid.replaceChildren(...visible.map(card));
+  const paged = paginateProducts(visible, currentPage); currentPage = paged.page;
+  document.getElementById('result-count').textContent = visible.length ? `Showing ${paged.start + 1}–${paged.start + paged.products.length} of ${visible.length} product${visible.length === 1 ? '' : 's'}` : '0 products';
+  grid.replaceChildren(...paged.products.map(card));
+  pagination.innerHTML = paginationMarkup(paged.page, paged.pages, page => {
+    const url = new URL(location.href); url.searchParams.set('page', page); return url.pathname + url.search;
+  });
+  pagination.hidden = paged.pages <= 1;
   document.getElementById('empty-state').hidden = visible.length > 0;
 }
-search.addEventListener('input', render); sort.addEventListener('change', render);
+function resetPage() {
+  currentPage = 1;
+  const url = new URL(location.href); url.searchParams.delete('page'); history.replaceState(null, '', url);
+}
+search.addEventListener('input', () => {resetPage(); render();});
+sort.addEventListener('change', () => {resetPage(); render();});
+pagination.addEventListener('click', event => {
+  const link = event.target.closest('a[data-page]');
+  if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  event.preventDefault(); currentPage = Number(link.dataset.page);
+  const url = new URL(location.href); url.searchParams.set('page', currentPage); history.replaceState(null, '', url);
+  render();
+  const heading = document.querySelector('.results-heading');
+  heading.querySelector('h2').tabIndex = -1; heading.querySelector('h2').focus({preventScroll:true});
+  heading.scrollIntoView({block:'start'});
+});
 document.getElementById('reset-filters').addEventListener('click', () => {
   search.value = ''; category = selectedCategory || 'All products'; sort.value = 'featured';
+  resetPage();
   if (!hasCategory) {
     const url = new URL(location.href); url.searchParams.delete('category'); url.searchParams.set('view', 'all'); history.replaceState(null, '', url);
   }

@@ -17,7 +17,7 @@ export async function onRequest(context) {
       return data.products.filter(p=>p.published===true).map(p=>({...p,category:c.name}));
     }));
     const snapshot={categories,products:groups.flat(),promotions:promotionData.promotions,offers:offerData.offers};
-    const html=renderCatalogue(await response.clone().text(),snapshot,selected);
+    const html=renderCatalogue(await response.clone().text(),snapshot,selected,new Date(),url.searchParams.get('page')||1);
     const headers=new Headers(response.headers);headers.delete('content-length');headers.delete('etag');headers.set('Cache-Control','public, max-age=0, must-revalidate');headers.set('X-Catalogue-Rendered','server');
     return new Response(html,{status:200,headers});
   }catch(error){console.error('Catalogue rendering failed:',error.message);return response;}
