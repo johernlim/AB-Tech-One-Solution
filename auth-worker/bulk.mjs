@@ -25,8 +25,12 @@ export async function publishBulk(env,user,data,validateProducts) {
       for(const row of change.products){
         if(!row||typeof row.id!=='string'||seen.has(row.id)||row.category!==category.name)return json({error:'Duplicate IDs or invalid category in batch.'},400);
         seen.add(row.id);const index=products.findIndex(p=>p.id===row.id);
-        const mode=data.mode==='mixed'?({add:'add',update:'edit'}[row.action]):data.mode;
-        if(!mode)return json({error:'Each row must use Add or Update.'},400);
+        const mode=data.mode==='mixed'?({add:'add',update:'edit',delete:'delete'}[row.action]):data.mode;
+        if(!mode)return json({error:'Each row must use Add, Update or Delete.'},400);
+        if(mode==='delete'){
+          if(index<0)return json({error:'Product '+row.id+' no longer exists. Reload the catalogue before deleting.'},409);
+          products.splice(index,1);count++;changed=true;continue;
+        }
         if(mode==='add'&&index>=0||mode==='edit'&&index<0)return json({error:'Product '+row.id+(index>=0?' already exists. Use Update.':' does not exist. Use Add.')},400);
         const product=index<0?{id:row.id,category:category.name,gallery:[],example:false}: {...products[index]};
         for(const field of fields)if(Object.hasOwn(row,field))product[field]=row[field];

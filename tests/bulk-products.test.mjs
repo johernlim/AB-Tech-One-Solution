@@ -77,3 +77,19 @@ test('Combined backend commits mixed actions atomically, ignores no-ops, and rej
  await withGit(async calls=>{const data=batch();data.mode='mixed';data.changes[0].products=[{...product,action:'update'}];assert.equal((await (await handleStaff(request(data),env)).json()).count,0);assert.equal(calls.some(c=>c.method==='POST'||c.method==='PATCH'),false);});
  await withGit(async calls=>{const data=batch();data.mode='mixed';data.changes[0].products[0].action='skip';assert.equal((await handleStaff(request(data),env)).status,400);assert.equal(calls.some(c=>c.method==='POST'),false);});
 });
+test('Deleting exported rows requires explicit Yes, an existing identity and a current version',()=>{
+ const existing=[...combinedExportRow(catalogue[0],product,sha),'ref-camera','Yes'];
+ let review=reviewRows([existing],'mixed',catalogue);assert.deepEqual(review.errors,[]);assert.equal(review.items[0].action,'delete');assert.deepEqual(review.items[0].changes,['delete']);
+ const no=existing.slice();no[15]='No';assert.equal(reviewRows([no],'mixed',catalogue).items[0].action,'update');
+ const invalid=existing.slice();invalid[15]='perhaps';assert.match(reviewRows([invalid],'mixed',catalogue).errors[0],/Yes or No/);
+ const stale=existing.slice();stale[13]='old';assert.match(reviewRows([stale],'mixed',catalogue).errors[0],/out of date/);
+ const missing=existing.slice();missing[14]='';assert.match(reviewRows([missing],'mixed',catalogue).errors[0],/existing exported/);
+});
+test('Bulk delete removes only the explicitly selected product and rejects stale or missing targets',async()=>{
+ const data=batch();data.mode='mixed';data.changes[0].products=[{id:product.id,category:product.category,action:'delete'}];
+ await withGit(async calls=>{const response=await handleStaff(request(data),env);assert.equal(response.status,200);assert.deepEqual(JSON.parse(calls.find(c=>c.url.endsWith('/git/trees')).body.tree[0].content).products,[]);});
+ await withGit(async calls=>{assert.equal((await handleStaff(request(data),env)).status,409);assert.equal(calls.some(c=>c.method==='POST'),false);},{productSha:head});
+ const missing=structuredClone(data);missing.changes[0].products[0].id='missing';
+ await withGit(async calls=>{assert.equal((await handleStaff(request(missing),env)).status,409);assert.equal(calls.some(c=>c.method==='POST'),false);});
+ await withGit(async calls=>{const mixed=structuredClone(data);mixed.changes[0].products.push({...product,id:'replacement',action:'add'});assert.equal((await handleStaff(request(mixed),env)).status,200);assert.deepEqual(JSON.parse(calls.find(c=>c.url.endsWith('/git/trees')).body.tree[0].content).products.map(p=>p.id),['replacement']);});
+});

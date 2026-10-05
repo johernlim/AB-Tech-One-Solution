@@ -1,6 +1,7 @@
 export const columns=['Category ID','Product ID','Product Name','Model Number','Price (RM)','Price Type','Visible','New Arrival','Image Filename','Availability','Installation','Specifications','Version'];
 export const combinedColumns=['Action','Category',...columns.slice(1)];
 export const referenceColumn='Row Reference';
+export const deleteColumn='Delete product';
 export function validateRowReferences(rows,identities){
   const errors=[],seen=new Set();
   const originals=new Map(identities.map(row=>[text(row[0]),row]));
@@ -30,6 +31,8 @@ export function reviewRows(rows,batchMode,catalogue,photos=new Map()){
     if((batchMode==='mixed'?values.slice(1):values).every(value=>!text(value)))return;
     const row=Object.fromEntries((batchMode==='mixed'?combinedColumns:columns).map((key,i)=>[key,text(values[i])])),line=index+2;
     const fail=message=>errors.push('Row '+line+': '+message);
+    const deletion=batchMode==='mixed'?bool(values[15],false):false;
+    if(deletion===null){fail('Delete product must be Yes or No.');return;}
     const group=catalogue.find(c=>batchMode==='mixed'?c.name===row.Category:c.slug===row['Category ID']);
     if(!group){fail('Choose an existing Category from the Categories sheet.');return;}
     // Identity and the saved version decide the action, never a spreadsheet label.
@@ -44,6 +47,10 @@ export function reviewRows(rows,batchMode,catalogue,photos=new Map()){
     if(mode==='add'&&original){fail('Product already exists. Use Update.');return;}
     if(mode==='edit'&&!original){fail('Product not found. Do not change its Category ID or Product ID.');return;}
     if(mode==='edit'&&row.Version!==group.sha){fail('This export is out of date. Download a fresh products file.');return;}
+    if(deletion){
+      if(mode!=='edit'||!text(values[14])){fail('Only existing exported products can be deleted.');return;}
+      items.push({line,slug:group.slug,product:original,original,photo:null,changes:['delete'],action:'delete',generated:false});return;
+    }
     const defaults={id,category:group.name,name:'',description:'',price:0,price_mode:'fixed',published:true,new_arrival:false,image:'',availability:'Contact us to confirm availability',installation:'Installation quoted separately.',specifications:[],gallery:[],example:false};
     const product={...(original||defaults)};
     product.specifications=product.specifications||[];
@@ -77,7 +84,7 @@ export function reviewRows(rows,batchMode,catalogue,photos=new Map()){
     if(mode==='add')counts.set(group.slug,(counts.get(group.slug)||0)+1);
     items.push({line,slug:group.slug,product,original,photo,changes,action:mode==='add'?'add':'update',generated});
   });
-  for(const group of catalogue)if(group.products.length+(counts.get(group.slug)||0)>250)errors.push(group.name+' would exceed 250 products.');
+  for(const group of catalogue)if(group.products.length+(counts.get(group.slug)||0)-items.filter(item=>item.slug===group.slug&&item.action==='delete').length>250)errors.push(group.name+' would exceed 250 products.');
   if(new Set(items.filter(i=>i.changes.length).map(i=>i.slug)).size>20)errors.push('Use at most 20 categories per batch.');
   return {errors,items};
 }

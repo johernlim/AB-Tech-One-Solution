@@ -5,9 +5,9 @@ self.onmessage=event=>{
     const sheet=workbook.Sheets.Products;
     if(!sheet)throw new Error('Use the Products sheet in the downloaded template.');
     const range=XLSX.utils.decode_range(sheet['!fullref']||sheet['!ref']||'A1');
-    if(range.e.c>14||range.e.r>250)throw new Error('Use the template columns and at most 250 product rows. Remove unused rows outside the table.');
+    if(range.e.c>15||range.e.r>250)throw new Error('Use the template columns and at most 250 product rows. Remove unused rows outside the table.');
     const identity=workbook.Sheets._Identity;
-    if(sheet.O1?.v!=='Row Reference'||!identity||identity.A1?.v!=='Row Reference')throw new Error('This template does not have product identity protection. Download a fresh template before uploading.');
+    if(sheet.O1?.v!=='Row Reference'||sheet.P1?.v!=='Delete product'||!identity||identity.A1?.v!=='Row Reference')throw new Error('This template does not have the latest product protection and deletion controls. Download a fresh template before uploading.');
     const identityRange=XLSX.utils.decode_range(identity['!fullref']||identity['!ref']||'A1');
     if(identityRange.e.r>250||identityRange.e.c>13)throw new Error('Invalid identity sheet. Download a fresh template.');
     for(const [key,cell] of Object.entries(sheet)){
