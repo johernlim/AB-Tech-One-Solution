@@ -58,7 +58,7 @@
       "category": "CCTV Systems",
       "published": true,
       "example": false,
-      "new_arrival": false,
+      "new_arrival": true,
       "specifications": [],
       "gallery": []
     }
