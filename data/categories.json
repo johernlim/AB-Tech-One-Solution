@@ -64,19 +64,19 @@
       "code": "SYS / SFT"
     },
     {
-      "name": "Digital Signage",
-      "slug": "signage",
-      "description": "Screens and displays for menus, promotions and wayfinding, updated remotely from anywhere.",
-      "icon": "signage",
-      "code": "SYS / SIGN"
-    },
-    {
       "name": "PWP Products",
       "slug": "pwp",
       "description": "Optional add-ons at special prices when bought with qualifying products. Browse normal prices here and unlock PWP prices in your cart.",
       "icon": "pos",
       "code": "SHOP / PWP",
       "visible": false
+    },
+    {
+      "name": "Digital Signage",
+      "slug": "signage",
+      "description": "Screens and displays for menus, promotions and wayfinding, updated remotely from anywhere.",
+      "icon": "signage",
+      "code": "SYS / SIGN"
     }
   ]
 }
