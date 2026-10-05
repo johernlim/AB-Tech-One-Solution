@@ -56,7 +56,7 @@
       "availability": "Contact us to confirm availability",
       "price": 9999,
       "category": "CCTV Systems",
-      "published": false,
+      "published": true,
       "example": false,
       "new_arrival": false,
       "specifications": [],
