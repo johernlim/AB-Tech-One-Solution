@@ -1,7 +1,7 @@
 {
   "products": [
     {
-      "id": "cctv-turret",
+      "id": "rs-uniarch-uho-c1-m3f2",
       "name": "Uniarch UHO-C1-M3F2 3MP Wi-Fi Cube Camera",
       "category": "CCTV Systems",
       "image": "assets/uploads/e89a44f1-377d-4d24-886d-e452d2b69a87.png",
@@ -24,7 +24,10 @@
       "availability": "contact us to confirm availability",
       "published": true,
       "example": false,
-      "new_arrival": false
+      "new_arrival": false,
+      "id_aliases": [
+        "cctv-turret"
+      ]
     },
     {
       "id": "cctv-kit",

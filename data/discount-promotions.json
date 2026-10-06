@@ -1,10 +1,19 @@
 {
-  "promotions": [{
-    "id": "october-camera-sale",
-    "name": "October Camera Sale",
-    "start": "2026-10-04",
-    "end": "2026-10-31",
-    "enabled": true,
-    "products": [{"key":"CCTV Systems:cctv-turret","mode":"percent","value":20,"limit":null}]
-  }]
+  "promotions": [
+    {
+      "id": "october-camera-sale",
+      "name": "October Camera Sale",
+      "start": "2026-10-04",
+      "end": "2026-10-31",
+      "enabled": true,
+      "products": [
+        {
+          "key": "CCTV Systems:rs-uniarch-uho-c1-m3f2",
+          "mode": "percent",
+          "value": 20,
+          "limit": null
+        }
+      ]
+    }
+  ]
 }
